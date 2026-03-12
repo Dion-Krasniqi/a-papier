@@ -4,11 +4,13 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 fn main() {
-    let a: ValRef = Rc::new(RefCell::new(Val::new(4.0)));
-    let b: ValRef = Rc::new(RefCell::new(Val::new(4.0)));
+    let a = Val::new(4.0);
+    let b = Val::new(4.0);
     let c = a + b;
-    println!("{}", c.data );
-    println!("{}", c.opp);
+    let d = Val::new(4.0) * c;
+    &d.print();
+    let e = d + Val::new(3.0);
+    &e.print();
 
 }
 
@@ -31,7 +33,7 @@ impl fmt::Display for Op{
     }
 }
 
-type ValRef = Rc<RefCell<Val>>;
+struct ValRef(Rc<RefCell<Val>>);
 struct Val {
     data: f32,
     grad: f32,
@@ -42,12 +44,27 @@ struct Val {
 }
 
 impl Val {
-    fn new(value: f32) -> Val {
-        Val {
+    fn new(value: f32) -> ValRef {
+        ValRef(Rc::new(RefCell::new(
+            Val {
                 data: value,
                 grad: 0.0,
                 opp: Op::Leaf,
                 children: Vec::new(),
+            }
+        )))
+    }
+}
+
+impl ValRef {
+    fn print(&self) {
+        println!("({},{})", self.0.borrow().data,
+                         self.0.borrow().opp);
+    }
+    // just playing
+    fn child(self) {
+        for child in &self.0.borrow().children {
+            println!("1");
         }
     }
 }
@@ -55,25 +72,25 @@ impl Val {
 impl Add for ValRef {
     type Output = ValRef;
     fn add(self, other: ValRef) -> ValRef {
-        Rc::new(RefCell::new(
-            Val {
-                data: self.borrow().data + other.borrow().data,
-                grad: 0.0,
-                opp: Op::Add,
-                children: vec![Rc::clone(&self), Rc::clone(&other)],
-            }
-        ))
+        ValRef(Rc::new(RefCell::new(Val {
+            data: self.0.borrow().data + other.0.borrow().data,
+            grad: 0.0,
+            opp: Op::Add,
+            children: vec![ValRef(Rc::clone(&self.0)), 
+                           ValRef(Rc::clone(&other.0))],
+        })))
     }
 }
 
-impl Mul for Val {
-    type Output = Val;
-    fn mul(self, other: Val) -> Val {
-        Val {
-            data: self.data * other.data,
+impl Mul for ValRef {
+    type Output = ValRef;
+    fn mul(self, other: ValRef) -> ValRef {
+        ValRef(Rc::new(RefCell::new( Val {
+            data: self.0.borrow().data * other.0.borrow().data,
             grad: 0.0,
             opp: Op::Mul,
-            children: self.children,
-        }
+            children: vec![ValRef(Rc::clone(&self.0)), 
+                           ValRef(Rc::clone(&other.0))],
+        })))
     }
 }
