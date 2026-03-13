@@ -4,13 +4,19 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 fn main() {
-    let a = Val::new(4.0);
-    let b = Val::new(4.0);
+    let a = &Val::new(4.0);
+    let b = &Val::new(2.0);
     let c = a + b;
-    let d = Val::new(4.0) * c;
+    let d = a + a;
+    let g = &c + &d;
+    &g.print();
+    &g.child();
+    &c.child();
+    &d.child();
+    /*let d = Val::new(4.0) * c;
     &d.print();
     let e = d + Val::new(3.0);
-    &e.print();
+    &e.print();*/
 
 }
 
@@ -62,16 +68,16 @@ impl ValRef {
                          self.0.borrow().opp);
     }
     // just playing
-    fn child(self) {
+    fn child(&self) {
         for child in &self.0.borrow().children {
-            println!("1");
+            &child.print();
         }
     }
 }
 
-impl Add for ValRef {
+impl Add for &ValRef {
     type Output = ValRef;
-    fn add(self, other: ValRef) -> ValRef {
+    fn add(self, other: &ValRef) -> ValRef {
         ValRef(Rc::new(RefCell::new(Val {
             data: self.0.borrow().data + other.0.borrow().data,
             grad: 0.0,
