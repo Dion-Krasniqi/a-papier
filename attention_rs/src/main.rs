@@ -4,19 +4,18 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 fn main() {
-    let a = &Val::new(4.0);
-    let b = &Val::new(2.0);
-    let c = a + b;
-    let d = a + a;
-    let g = &c + &d;
-    &g.print();
-    &g.child();
-    &c.child();
-    &d.child();
-    /*let d = Val::new(4.0) * c;
-    &d.print();
-    let e = d + Val::new(3.0);
-    &e.print();*/
+    let x1 = &Val::new(2.0);
+    let x2 = &Val::new(0.0);
+    let w1 = &Val::new(-3.0);
+    let w2 = &Val::new(1.0);
+    let b = &Val::new(6.7);
+    let x1w1 = x1*w1;
+    let x2w2 = x2*w2;
+    let x1w1x2w2 = &x1w1 + &x2w2;
+    let n = &x1w1x2w2 + b;
+    let O = n.tanh();
+    O.print();
+    // do manual back prop
 
 }
 
@@ -27,6 +26,7 @@ fn main() {
 enum Op {
     Add,
     Mul,
+    Tanh,
     Leaf,
 }
 impl fmt::Display for Op{
@@ -34,6 +34,7 @@ impl fmt::Display for Op{
         match self {
             Op::Add => write!(f, "+"),
             Op::Mul => write!(f, "*"),
+            Op::Tanh => write!(f, "tanh"),
             _ => write!(f, ""),
         }
     }
@@ -73,6 +74,17 @@ impl ValRef {
             &child.print();
         }
     }
+    // tanh with direct tanh
+    fn tanh(&self) -> ValRef {
+        ValRef(Rc::new(RefCell::new(
+            Val {
+                data: self.0.borrow().data.tanh(),
+                grad: 0.0,
+                opp: Op::Tanh,
+                children: vec![ValRef(Rc::clone(&self.0))],
+            }
+        )))
+    }
 }
 
 impl Add for &ValRef {
@@ -88,9 +100,9 @@ impl Add for &ValRef {
     }
 }
 
-impl Mul for ValRef {
+impl Mul for &ValRef {
     type Output = ValRef;
-    fn mul(self, other: ValRef) -> ValRef {
+    fn mul(self, other: &ValRef) -> ValRef {
         ValRef(Rc::new(RefCell::new( Val {
             data: self.0.borrow().data * other.0.borrow().data,
             grad: 0.0,
