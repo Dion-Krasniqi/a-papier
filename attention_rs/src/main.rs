@@ -8,14 +8,34 @@ fn main() {
     let x2 = &Val::new(0.0);
     let w1 = &Val::new(-3.0);
     let w2 = &Val::new(1.0);
-    let b = &Val::new(6.7);
+    let b = &Val::new(6.881373);
     let x1w1 = x1*w1;
     let x2w2 = x2*w2;
     let x1w1x2w2 = &x1w1 + &x2w2;
     let n = &x1w1x2w2 + b;
-    let O = n.tanh();
+    let mut O = ValRef::tanh(&n);
+
+    // manual back prop
+    O.get_grad();
+    O.set_grad(1.0);
+    n.set_grad(1.0-O.0.borrow().data.powf(2.0));
+    x1w1x2w2.set_grad(1.0 * n.0.borrow().grad);
+    b.set_grad(1.0 * n.0.borrow().grad);
+    x1w1.set_grad(1.0 * x1w1x2w2.0.borrow().grad);
+    x2w2.set_grad(1.0 * x1w1x2w2.0.borrow().grad);
+    x1.set_grad(w1.0.borrow().data * /*cuz chain rule*/ x1w1.0.borrow().grad);
+    w1.set_grad(x1.0.borrow().data * x1w1.0.borrow().grad);
+    x2.set_grad(w2.0.borrow().data * x2w2.0.borrow().grad);
+    w2.set_grad(x2.0.borrow().data * x2w2.0.borrow().grad);
+
     O.print();
-    // do manual back prop
+    n.print();
+    x1w1x2w2.print();
+    b.print();
+    x1.print();
+    w1.print();
+    x2.print();
+    w2.print();
 
 }
 
@@ -41,7 +61,7 @@ impl fmt::Display for Op{
 }
 
 struct ValRef(Rc<RefCell<Val>>);
-struct Val {
+pub struct Val {
     data: f32,
     grad: f32,
     opp: Op,
@@ -65,8 +85,9 @@ impl Val {
 
 impl ValRef {
     fn print(&self) {
-        println!("({},{})", self.0.borrow().data,
-                         self.0.borrow().opp);
+        println!("({},{},{})", self.0.borrow().data,
+                               self.0.borrow().grad,
+                               self.0.borrow().opp);
     }
     // just playing
     fn child(&self) {
@@ -74,14 +95,20 @@ impl ValRef {
             &child.print();
         }
     }
+    fn get_grad(&self) {
+        println!("{}", self.0.borrow().grad);
+    }
+    fn set_grad(&self, val: f32) {
+        self.0.borrow_mut().grad = val;
+    }
     // tanh with direct tanh
-    fn tanh(&self) -> ValRef {
+    fn tanh(value: &ValRef) -> ValRef {
         ValRef(Rc::new(RefCell::new(
             Val {
-                data: self.0.borrow().data.tanh(),
+                data: value.0.borrow().data.tanh(),
                 grad: 0.0,
                 opp: Op::Tanh,
-                children: vec![ValRef(Rc::clone(&self.0))],
+                children: vec![ValRef(Rc::clone(&value.0))],
             }
         )))
     }
