@@ -37,6 +37,35 @@ fn main() {
     x2.print();
     w2.print();
 
+    // end of manual back prop
+
+    // backpropagation with built ins
+    let y1 = &Val::new(2.0);
+    let y2 = &Val::new(0.0);
+    let u1 = &Val::new(-3.0);
+    let u2 = &Val::new(1.0);
+    let bi = &Val::new(6.881373);
+    let y1u1 = y1*u1;
+    let y2u2 = y2*u2;
+    let y1u1y2u2 = &y1u1 + &y2u2;
+    let k = &y1u1y2u2 + bi;
+    let mut L = ValRef::tanh(&k);
+    L.set_grad(1.0);
+    (L.0.borrow().backward)();
+    (k.0.borrow().backward)();
+    (y1u1y2u2.0.borrow().backward)();
+    (y1u1.0.borrow().backward)();
+    (y2u2.0.borrow().backward)();
+    (bi.0.borrow().backward)();
+    (y1.0.borrow().backward)();
+    (u1.0.borrow().backward)();
+    (y2.0.borrow().backward)();
+    (u2.0.borrow().backward)();
+    y1.print();
+    u1.print();
+    y2.print();
+    u2.print();
+    //
 }
 
 
@@ -66,7 +95,9 @@ pub struct Val {
     grad: f32,
     opp: Op,
     children: Vec<ValRef>, 
-    // the naming kinda confusing to me, also type so its mut and shared 
+    // the naming kinda confusing to me, also type ValRef with Rc and Refcell so its mut and shared 
+    backward: Box<dyn Fn()>,
+
                                     
 }
 
@@ -78,6 +109,7 @@ impl Val {
                 grad: 0.0,
                 opp: Op::Leaf,
                 children: Vec::new(),
+                backward: Box::new(|| {}),
             }
         )))
     }
@@ -103,39 +135,76 @@ impl ValRef {
     }
     // tanh with direct tanh
     fn tanh(value: &ValRef) -> ValRef {
-        ValRef(Rc::new(RefCell::new(
+        let output = ValRef(Rc::new(RefCell::new(
             Val {
                 data: value.0.borrow().data.tanh(),
                 grad: 0.0,
                 opp: Op::Tanh,
                 children: vec![ValRef(Rc::clone(&value.0))],
+                backward: Box::new(|| {}),
             }
-        )))
+        )));
+        // backward func
+        let self_clone = Rc::clone(&value.0);
+        let out_clone = Rc::clone(&output.0);
+
+        output.0.borrow_mut().backward = Box::new(move || {
+            let out_grad = out_clone.borrow().grad;
+            self_clone.borrow_mut().grad += (1.0 - (out_clone.borrow().data).powf(2.0)) * out_clone.borrow().grad;
+        });
+
+        output
     }
 }
 
 impl Add for &ValRef {
     type Output = ValRef;
     fn add(self, other: &ValRef) -> ValRef {
-        ValRef(Rc::new(RefCell::new(Val {
+        let output = ValRef(Rc::new(RefCell::new(Val {
             data: self.0.borrow().data + other.0.borrow().data,
             grad: 0.0,
             opp: Op::Add,
             children: vec![ValRef(Rc::clone(&self.0)), 
                            ValRef(Rc::clone(&other.0))],
-        })))
+            backward: Box::new(|| {}),
+        })));
+        // backward func
+        let self_clone = Rc::clone(&self.0);
+        let other_clone = Rc::clone(&other.0);
+        let out_clone = Rc::clone(&output.0);
+
+        output.0.borrow_mut().backward = Box::new(move || {
+            let out_grad = out_clone.borrow().grad;
+            self_clone.borrow_mut().grad += out_grad;
+            other_clone.borrow_mut().grad += out_grad;
+        });
+
+        output
     }
 }
 
 impl Mul for &ValRef {
     type Output = ValRef;
     fn mul(self, other: &ValRef) -> ValRef {
-        ValRef(Rc::new(RefCell::new( Val {
+        let output = ValRef(Rc::new(RefCell::new( Val {
             data: self.0.borrow().data * other.0.borrow().data,
             grad: 0.0,
             opp: Op::Mul,
             children: vec![ValRef(Rc::clone(&self.0)), 
                            ValRef(Rc::clone(&other.0))],
-        })))
+            backward: Box::new(|| {}),
+        })));
+        // backward func
+        let self_clone = Rc::clone(&self.0);
+        let other_clone = Rc::clone(&other.0);
+        let out_clone = Rc::clone(&output.0);
+
+        output.0.borrow_mut().backward = Box::new(move || {
+            let out_grad = out_clone.borrow().grad;
+            self_clone.borrow_mut().grad += other_clone.borrow().data * out_grad;
+            other_clone.borrow_mut().grad += self_clone.borrow().data * out_grad;
+        });
+
+        output
     }
 }
