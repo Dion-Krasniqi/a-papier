@@ -2,6 +2,8 @@ use std::ops::{Add, Mul};
 use std::fmt;
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
 
 fn main() {
     let x1 = &Val::new(2.0);
@@ -65,17 +67,29 @@ fn main() {
     u1.print();
     y2.print();
     u2.print();
+
+    let y1 = &Val::new(2.0);
+    let y2 = &Val::new(0.0);
+    let u1 = &Val::new(-3.0);
+    let u2 = &Val::new(1.0);
+    let bi = &Val::new(6.881373);
+    let y1u1 = y1*u1;
+    let y2u2 = y2*u2;
+    let y1u1y2u2 = &y1u1 + &y2u2;
+    let k = &y1u1y2u2 + bi;
+    let mut L = ValRef::tanh(&k);
+    L.backward();
+    y1.print();
+    u1.print();
+    y2.print();
+    u2.print();
     //
-    let c = 2.3 * y1;
-    let d = y1 * 32.2;
-    &c.print();
-    &d.print();
+
 }
 
 
 
 // move this to its own file but here for now
-
 enum Op {
     Add,
     Mul,
@@ -93,7 +107,6 @@ impl fmt::Display for Op{
     }
 }
 
-struct ValRef(Rc<RefCell<Val>>);
 pub struct Val {
     data: f32,
     grad: f32,
@@ -104,7 +117,6 @@ pub struct Val {
 
                                     
 }
-
 impl Val {
     fn new(value: f32) -> ValRef {
         ValRef(Rc::new(RefCell::new(
@@ -118,6 +130,20 @@ impl Val {
         )))
     }
 }
+
+struct ValRef(Rc<RefCell<Val>>);
+// for hashmap
+impl Hash for ValRef {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Rc::as_ptr(&self.0).hash(state);
+    }
+}
+impl PartialEq for ValRef {
+    fn eq(&self, other: &ValRef) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for ValRef {}
 
 impl ValRef {
     fn print(&self) {
@@ -136,6 +162,24 @@ impl ValRef {
     }
     fn set_grad(&self, val: f32) {
         self.0.borrow_mut().grad = val;
+    }
+    fn topo_sort(&self, visited: &mut HashSet<ValRef>, topo: &mut Vec<ValRef>){
+        if !(visited.contains(&self)) {
+            visited.insert(ValRef(Rc::clone(&self.0)));
+            for child in &self.0.borrow().children {
+                &child.topo_sort(visited, topo);
+            }
+            topo.push(ValRef(Rc::clone(&self.0)));
+        }
+    }
+    fn backward(&self) {
+        let mut topo = Vec::new();
+        let mut visited = HashSet::new();
+        &self.topo_sort(&mut visited, &mut topo);
+        &self.set_grad(1.0);
+        for node in topo.iter().rev(){
+            (node.0.borrow().backward)();
+        };
     }
     // tanh with direct tanh
     fn tanh(value: &ValRef) -> ValRef {
