@@ -93,7 +93,9 @@ fn main() {
 enum Op {
     Add,
     Mul,
+    Pow,
     Tanh,
+    Exp,
     Leaf,
 }
 impl fmt::Display for Op{
@@ -181,6 +183,50 @@ impl ValRef {
             (node.0.borrow().backward)();
         };
     }
+    fn powf(&self, exp: f32) -> ValRef {
+        let output = ValRef(Rc::new(RefCell::new(
+            Val {
+                data: self.0.borrow().data.powf(exp),
+                grad: 0.0,
+                opp: Op::Pow,
+                children: vec![ValRef(Rc::clone(&self.0))],
+                backward: Box::new(|| {}),
+            }
+        )));
+        // backward func
+        let self_clone = Rc::clone(&self.0);
+        let out_clone = Rc::clone(&output.0);
+
+        output.0.borrow_mut().backward = Box::new(move || {
+            let out_grad = out_clone.borrow().grad;
+            self_clone.borrow_mut().grad += (exp * &self_clone.borrow().data.powf(exp-1.0)) * out_grad;
+        });
+
+        output
+    }
+    // exponential func
+    fn expo(&self) -> ValRef {
+        let output = ValRef(Rc::new(RefCell::new(
+            Val {
+                data: self.0.borrow().data.exp(),
+                grad: 0.0,
+                opp: Op::Exp,
+                children: vec![ValRef(Rc::clone(&self.0))],
+                backward: Box::new(|| {}),
+            }
+        )));
+        // backward func
+        let self_clone = Rc::clone(&self.0);
+        let out_clone = Rc::clone(&output.0);
+
+        output.0.borrow_mut().backward = Box::new(move || {
+            let out_grad = out_clone.borrow().grad;
+            let out_data = out_clone.borrow().data;
+            self_clone.borrow_mut().grad += out_data * out_grad;
+        });
+
+        output
+    }
     // tanh with direct tanh
     fn tanh(value: &ValRef) -> ValRef {
         let output = ValRef(Rc::new(RefCell::new(
@@ -198,7 +244,22 @@ impl ValRef {
 
         output.0.borrow_mut().backward = Box::new(move || {
             let out_grad = out_clone.borrow().grad;
-            self_clone.borrow_mut().grad += (1.0 - (out_clone.borrow().data).powf(2.0)) * out_clone.borrow().grad;
+            self_clone.borrow_mut().grad += (1.0 - (out_clone.borrow().data).powf(2.0)) * out_grad;
+        });
+
+        output
+    }
+    // composite tanh
+    fn _tanh(&self) -> ValRef {
+        // kinda funky
+        let output = &(&(self*2.0).expo()+(-1.0))*&(&(self*2.0).expo()+(-1.0)).powf(-1.0);
+        // backward func
+        let self_clone = Rc::clone(&self.0);
+        let out_clone = Rc::clone(&output.0);
+
+        output.0.borrow_mut().backward = Box::new(move || {
+            let out_grad = out_clone.borrow().grad;
+            self_clone.borrow_mut().grad += (1.0 - (out_clone.borrow().data).powf(2.0)) * out_grad;
         });
 
         output
