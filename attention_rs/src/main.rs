@@ -1,4 +1,4 @@
-use std::ops::{Add, Mul};
+use std::ops::{Add, Mul, Div};
 use std::fmt;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -40,49 +40,27 @@ fn main() {
     w2.print();
 
     // end of manual back prop
+    // Same example using backward function
+    let x1 = &Val::new(2.0);
+    let x2 = &Val::new(0.0);
+    let w1 = &Val::new(-3.0);
+    let w2 = &Val::new(1.0);
+    let b = &Val::new(6.881373);
+    let x1w1 = x1*w1;
+    let x2w2 = x2*w2;
+    let x1w1x2w2 = &x1w1 + &x2w2;
+    let n = &x1w1x2w2 + b;
+    let mut O = ValRef::tanh(&n);
+    O.backward();
+    O.print();
+    n.print();
+    x1w1x2w2.print();
+    b.print();
+    x1.print();
+    w1.print();
+    x2.print();
+    w2.print();
 
-    // backpropagation with built ins
-    let y1 = &Val::new(2.0);
-    let y2 = &Val::new(0.0);
-    let u1 = &Val::new(-3.0);
-    let u2 = &Val::new(1.0);
-    let bi = &Val::new(6.881373);
-    let y1u1 = y1*u1;
-    let y2u2 = y2*u2;
-    let y1u1y2u2 = &y1u1 + &y2u2;
-    let k = &y1u1y2u2 + bi;
-    let mut L = ValRef::tanh(&k);
-    L.set_grad(1.0);
-    (L.0.borrow().backward)();
-    (k.0.borrow().backward)();
-    (y1u1y2u2.0.borrow().backward)();
-    (y1u1.0.borrow().backward)();
-    (y2u2.0.borrow().backward)();
-    (bi.0.borrow().backward)();
-    (y1.0.borrow().backward)();
-    (u1.0.borrow().backward)();
-    (y2.0.borrow().backward)();
-    (u2.0.borrow().backward)();
-    y1.print();
-    u1.print();
-    y2.print();
-    u2.print();
-
-    let y1 = &Val::new(2.0);
-    let y2 = &Val::new(0.0);
-    let u1 = &Val::new(-3.0);
-    let u2 = &Val::new(1.0);
-    let bi = &Val::new(6.881373);
-    let y1u1 = y1*u1;
-    let y2u2 = y2*u2;
-    let y1u1y2u2 = &y1u1 + &y2u2;
-    let k = &y1u1y2u2 + bi;
-    let mut L = ValRef::tanh(&k);
-    L.backward();
-    y1.print();
-    u1.print();
-    y2.print();
-    u2.print();
     //
 
 }
@@ -252,7 +230,8 @@ impl ValRef {
     // composite tanh
     fn _tanh(&self) -> ValRef {
         // kinda funky
-        let output = &(&(self*2.0).expo()+(-1.0))*&(&(self*2.0).expo()+(-1.0)).powf(-1.0);
+        let output = &(&(self*2.0).expo()+(-1.0))/
+                     &(&(self*2.0).expo()+(-1.0));
         // backward func
         let self_clone = Rc::clone(&self.0);
         let out_clone = Rc::clone(&output.0);
@@ -422,5 +401,25 @@ impl Mul<&ValRef> for f32 {
         });
 
         output
+    }
+}
+//Division
+impl Div for &ValRef {
+    type Output = ValRef;
+    fn div(self, other: &ValRef) -> ValRef {
+        self*&(other.powf(-1.0))
+    }
+}
+impl Div<f32> for &ValRef {
+    type Output = ValRef;
+    fn div(self, denominator: f32) -> ValRef {
+        let other = &Val::new(denominator);
+        self*&(other.powf(-1.0))
+    }
+}
+impl Div<&ValRef> for f32 {
+    type Output = ValRef;
+    fn div(self, denominator: &ValRef) -> ValRef {
+        self*&(denominator.powf(-1.0))
     }
 }
