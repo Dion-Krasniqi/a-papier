@@ -229,7 +229,7 @@ impl ValRef {
     pub fn _tanh(&self) -> ValRef {
         // kinda funky
         let output = &(&(self*2.0).expo()+(-1.0))/
-                     &(&(self*2.0).expo()+(-1.0));
+                     &(&(self*2.0).expo()+(1.0));
         // backward func
         let self_clone = Rc::clone(&self.0);
         let out_clone = Rc::clone(&output.0);

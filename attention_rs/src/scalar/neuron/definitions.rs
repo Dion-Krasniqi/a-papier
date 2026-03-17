@@ -24,7 +24,7 @@ impl Neuron {
     pub fn forward(&self, inputs: Vec<f32>) -> ValRef{
         let mut s = Val::new(0.0); // ValRef 
         for (w, x) in self.weights.iter().zip(inputs.iter()) {
-            s = &s + &(w**x); 
+            s = &s + &(w * &Val::new(*x)); 
         }
         s = &s + &self.bias;
         s._tanh()
