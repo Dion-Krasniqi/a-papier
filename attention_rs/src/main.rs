@@ -11,12 +11,9 @@ use crate::scalar::neuron::definitions::*;
 fn main(){
     let n = Neuron::new(5);
     let O = &n.forward(vec![0.002,0.02,0.01,0.01,0.02]);
-    for w in &n.weights {
-        w.print();
-    };
     &O.backward();
-    for w in &n.weights {
-        w.print();
-    };
+
+    let L = Neuron_Layer::new(5,2);
+    let O = &L.forward(vec![0.002,0.02,0.01,0.01,0.02]);
 
 }

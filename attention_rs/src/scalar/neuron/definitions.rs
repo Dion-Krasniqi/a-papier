@@ -30,3 +30,26 @@ impl Neuron {
         s._tanh()
     }
 }
+
+pub struct Neuron_Layer {
+    pub nodes: Vec<Neuron>
+}
+
+impl Neuron_Layer{
+    pub fn new(nin: u32, nn: u32) -> Neuron_Layer {
+        let mut nodes = Vec::new();
+        for _ in 0..nn {
+            nodes.push(Neuron::new(nin))
+        };
+        Neuron_Layer{
+            nodes
+        }
+    }
+    pub fn forward(&self, inputs: Vec<f32>) -> Vec<ValRef> {
+        let mut output = Vec::new();
+        for node in &self.nodes {
+            output.push(node.forward(inputs.clone()));
+        }
+        output
+    }
+}
