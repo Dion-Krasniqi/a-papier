@@ -2,21 +2,31 @@ use crate::scalar::value::definitions::*;
 use rand::random;
 
 fn main(){
-
+    
 }
 
 pub struct Neuron {
-    inputs: Vec<f32>,
-    weights: Vec<ValRef>,
-    bias: ValRef,
+    pub weights: Vec<ValRef>,
+    pub bias: ValRef,
 }
 
 impl Neuron {
-    pub fn new(x: Vec<f32>) -> Neuron {
+    pub fn new(nin: u32) -> Neuron {
+        let mut init_weights = Vec::new();
+        for _ in 0..nin {
+            init_weights.push(Val::new(random::<f32>()));
+        };
         Neuron {
-            inputs: x,
-            weights: Vec::new(),
+            weights: init_weights,
             bias: Val::new(random::<f32>()),
         }
+    }
+    pub fn forward(&self, inputs: Vec<f32>) -> ValRef{
+        let mut s = Val::new(0.0); // ValRef 
+        for (w, x) in self.weights.iter().zip(inputs.iter()) {
+            s = &s + &(w**x); 
+        }
+        s = &s + &self.bias;
+        s._tanh()
     }
 }
