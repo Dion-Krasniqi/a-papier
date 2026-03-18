@@ -133,11 +133,17 @@ impl ValRef {
             &child.print();
         }
     }
-    fn get_grad(&self) {
-        println!("{}", self.0.borrow().grad);
+    pub fn get_grad(&self) -> f32 {
+        self.0.borrow().grad
     }
-    fn set_grad(&self, val: f32) {
+    pub fn set_grad(&self, val: f32) {
         self.0.borrow_mut().grad = val;
+    }
+    pub fn get_data(&self) -> f32 {
+        self.0.borrow().data
+    }
+    pub fn set_data(&self, val: f32) {
+        self.0.borrow_mut().data = val;
     }
     fn topo_sort(&self, visited: &mut HashSet<ValRef>, topo: &mut Vec<ValRef>){
         if !(visited.contains(&self)) {
@@ -158,7 +164,7 @@ impl ValRef {
             f();
         };
     }
-    fn powf(&self, exp: f32) -> ValRef {
+    pub fn powf(&self, exp: f32) -> ValRef {
         let output = ValRef(Rc::new(RefCell::new(
             Val {
                 data: self.0.borrow().data.powf(exp),
@@ -181,7 +187,7 @@ impl ValRef {
         output
     }
     // exponential func
-    fn expo(&self) -> ValRef {
+    pub fn expo(&self) -> ValRef {
         let output = ValRef(Rc::new(RefCell::new(
             Val {
                 data: self.0.borrow().data.exp(),
