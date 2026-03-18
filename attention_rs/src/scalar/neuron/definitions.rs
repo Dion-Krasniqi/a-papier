@@ -27,6 +27,11 @@ impl Neuron {
         s = &s + &self.bias;
         s._tanh()
     }
+    pub fn parameters(&self) -> Vec<ValRef> {
+        let mut params: Vec<ValRef> = self.weights.iter().map(|w| w.clone()).collect();
+        params.push(self.bias.clone());
+        params
+    }
 }
 
 pub struct Neuron_Layer {
@@ -48,6 +53,15 @@ impl Neuron_Layer{
         }
         output
     }
+    pub fn parameters(&self) -> Vec<ValRef> {
+        let mut params = Vec::new();
+        for n in &self.nodes {
+            for w in n.parameters() {
+                params.push(w);
+            }
+        }
+        params
+    }
 }
 
 pub struct MLP {
@@ -67,5 +81,14 @@ impl MLP {
             inputs = self.layers[x].forward(inputs.clone());
         }
         self.layers.last().expect("iterated until before last").forward(inputs.clone())
+    }
+    pub fn parameters(&self) -> Vec<ValRef> {
+        let mut params = Vec::new();
+        for l in &self.layers {
+            for p in l.parameters() {
+                params.push(p);
+            }
+        }
+        params
     }
 }
