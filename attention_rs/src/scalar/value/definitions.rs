@@ -421,3 +421,9 @@ impl Div<&ValRef> for f32 {
         self*&(denominator.powf(-1.0))
     }
 }
+
+impl Clone for ValRef {
+    fn clone(&self) -> ValRef {
+        ValRef(Rc::clone(&self.0))
+    }
+}

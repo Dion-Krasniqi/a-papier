@@ -7,13 +7,12 @@ use std::hash::{Hash, Hasher};
 
 mod scalar;
 use crate::scalar::neuron::definitions::*;
+use crate::scalar::value::definitions::*;
 
 fn main(){
-    let n = Neuron::new(5);
-    let O = &n.forward(vec![0.002,0.02,0.01,0.01,0.02]);
-    &O.backward();
 
-    let L = Neuron_Layer::new(5,2);
-    let O = &L.forward(vec![0.002,0.02,0.01,0.01,0.02]);
+    let x = vec![Val::new(2.0),Val::new(3.0),Val::new(-1.0)];
+    let L = MLP::new(3, [4,4,1].to_vec());
+    let O = &L.forward(x);
 
 }
