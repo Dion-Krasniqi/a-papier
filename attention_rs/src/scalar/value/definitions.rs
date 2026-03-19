@@ -69,6 +69,7 @@ enum Op {
     Mul,
     Pow,
     Tanh,
+    ReLU,
     Exp,
     Leaf,
 }
@@ -243,6 +244,41 @@ impl ValRef {
         output.0.borrow_mut().backward = Rc::new(move || {
             let out_grad = out_clone.borrow().grad;
             self_clone.borrow_mut().grad += (1.0 - (out_clone.borrow().data).powf(2.0)) * out_grad;
+        });
+
+        output
+    }
+    pub fn _sigmoid(&self) -> ValRef {
+        let output = 1.0/&(1.0 + &(self*(-1.0)).expo());
+        // backward function
+        let self_clone = Rc::clone(&self.0);
+        let out_clone = Rc::clone(&output.0);
+
+        output.0.borrow_mut().backward = Rc::new(move || {
+            let out_grad = out_clone.borrow().grad;
+            let out_data =  out_clone.borrow().data;
+            // f = 1/(1-e(-x)) =(d/dx)=> d(f)/dx = e(-x)/((1 - e(-x))^2)
+            self_clone.borrow_mut().grad += out_data * (1.0 - out_data) * out_grad;
+        });
+
+        output
+    }
+    pub fn _relu(&self) -> ValRef {
+        let output = ValRef(Rc::new(RefCell::new(Val {
+            data: self.0.borrow().data.max(0.0),
+            grad: 0.0,
+            opp: Op::ReLU,
+            children: vec![ValRef(Rc::clone(&self.0)),],
+            backward: Rc::new(|| {}),
+        })));
+        // backward function
+        let self_clone = Rc::clone(&self.0);
+        let out_clone = Rc::clone(&output.0);
+
+        output.0.borrow_mut().backward = Rc::new(move || {
+            let out_grad = out_clone.borrow().grad;
+            let out_data =  out_clone.borrow().data;
+            self_clone.borrow_mut().grad += if out_data>0.0 {1.0} else {0.0} * out_grad;
         });
 
         output

@@ -7,6 +7,12 @@ pub struct Neuron {
     pub weights: Vec<ValRef>,
     pub bias: ValRef,
 }
+#[derive(Clone)]
+pub enum NONL {
+    tanh,
+    sigmoid,
+    relu,
+}
 
 impl Neuron {
     pub fn new(nin: u32) -> Neuron {
@@ -19,13 +25,16 @@ impl Neuron {
             bias: Val::new(random::<f32>()),
         }
     }
-    pub fn forward(&self, inputs: Vec<ValRef>) -> ValRef{
+    pub fn forward(&self, inputs: Vec<ValRef>, nl: NONL) -> ValRef{
         let mut s = Val::new(0.0); // ValRef 
         for (w, x) in self.weights.iter().zip(inputs.iter()) {
             s = &s + &(w * x); 
         }
         s = &s + &self.bias;
-        s._tanh()
+        match nl {
+            NONL::tanh => s._tanh(),
+            _ => s._sigmoid(),
+        }
     }
     pub fn parameters(&self) -> Vec<ValRef> {
         let mut params: Vec<ValRef> = self.weights.iter().map(|w| w.clone()).collect();
@@ -46,10 +55,10 @@ impl Neuron_Layer{
         };
         Neuron_Layer { nodes }
     }
-    pub fn forward(&self, inputs: Vec<ValRef>) -> Vec<ValRef> {
+    pub fn forward(&self, inputs: Vec<ValRef>, nl: NONL) -> Vec<ValRef> {
         let mut output = Vec::new();
         for node in &self.nodes {
-            output.push(node.forward(inputs.clone()));
+            output.push(node.forward(inputs.clone(), nl.clone()));
         }
         output
     }
@@ -76,11 +85,11 @@ impl MLP {
         };
         MLP { layers }
     }
-    pub fn forward(&self, mut inputs: Vec<ValRef>) -> Vec<ValRef> {
+    pub fn forward(&self, mut inputs: Vec<ValRef>, nl: NONL) -> Vec<ValRef> {
         for x in 0..(&self.layers.len()-1) {
-            inputs = self.layers[x].forward(inputs.clone());
+            inputs = self.layers[x].forward(inputs.clone(), nl.clone());
         }
-        self.layers.last().expect("iterated until before last").forward(inputs.clone())
+        self.layers.last().expect("iterated until before last").forward(inputs.clone(), nl.clone())
     }
     pub fn parameters(&self) -> Vec<ValRef> {
         let mut params = Vec::new();

@@ -7,6 +7,7 @@ use std::hash::{Hash, Hasher};
 
 mod scalar;
 use crate::scalar::neuron::definitions::*;
+use crate::scalar::neuron::definitions::NONL as NONL;
 use crate::scalar::value::definitions::*;
 
 fn main(){
@@ -26,7 +27,7 @@ fn main(){
         // forward pass
         ypred = Vec::new();
         for i in &xs {
-            ypred.push(L.forward(i.to_vec())[0].clone());
+            ypred.push(L.forward(i.to_vec(), NONL::tanh)[0].clone());
         }
         // backward pass
         for w in &L.parameters() {
