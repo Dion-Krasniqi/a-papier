@@ -235,18 +235,8 @@ impl ValRef {
     // composite tanh
     pub fn _tanh(&self) -> ValRef {
         // kinda funky
-        let output = &(&(self*2.0).expo()+(-1.0))/
-                     &(&(self*2.0).expo()+(1.0));
-        // backward func
-        let self_clone = Rc::clone(&self.0);
-        let out_clone = Rc::clone(&output.0);
-
-        output.0.borrow_mut().backward = Rc::new(move || {
-            let out_grad = out_clone.borrow().grad;
-            self_clone.borrow_mut().grad += (1.0 - (out_clone.borrow().data).powf(2.0)) * out_grad;
-        });
-
-        output
+        &(&(self*2.0).expo()+(-1.0))/
+        &(&(self*2.0).expo()+(1.0))
     }
     pub fn _sigmoid(&self) -> ValRef {
         let output = 1.0/&(1.0 + &(self*(-1.0)).expo());

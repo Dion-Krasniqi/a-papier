@@ -85,7 +85,7 @@ impl MLP {
         };
         MLP { layers }
     }
-    pub fn forward(&self, mut inputs: Vec<ValRef>, nl: NONL) -> Vec<ValRef> {
+    pub fn call(&self, mut inputs: Vec<ValRef>, nl: NONL) -> Vec<ValRef> {
         for x in 0..(&self.layers.len()-1) {
             inputs = self.layers[x].forward(inputs.clone(), nl.clone());
         }
