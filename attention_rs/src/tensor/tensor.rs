@@ -1,15 +1,45 @@
 use std::ops::{Add, Mul};
 use std::rc::Rc;
 use std::cell::RefCell;
+use rand::random;
 
 struct TensorData {
     data: Vec<f32>, // no matter the dim, the data is stored in order and shape "determines" dimension
     grad: Vec<f32>,
     shape: Vec<usize>,
+    children: Vec<Tensor>,
 }
-
 pub struct Tensor(Rc<RefCell<TensorData>>);
-
+impl Tensor {
+    pub fn tensor(shape: Vec<usize>) -> Tensor {
+        let size: usize = shape.iter().product();
+        let data: Vec<f32> = (0..size).map(|_| random::<f32>()).collect();
+        let output = TensorData {
+            data,
+            grad: vec![0.0f32;size],
+            shape: shape,
+            children: Vec::new(),
+        };
+        Tensor(Rc::new(RefCell::new(output)))
+    }
+    pub fn tensor_one(value: f32, shape: Vec<usize>) -> Tensor {
+        let size: usize = shape.iter().product();
+        let data = vec![value;size];
+        let output = TensorData {
+            data,
+            grad: vec![0.0f32;size],
+            shape: shape,
+            children: Vec::new(),
+        };
+        Tensor(Rc::new(RefCell::new(output)))
+    }
+    pub fn print(&self) {
+        let data = self.0.borrow();
+        println!("shape: {:?}", data.shape);
+        println!("data: {:?}", data.data);
+        println!("grade: {:?}", data.grad);
+    }
+}
 impl Clone for Tensor {
     fn clone(&self) -> Tensor {
         Tensor(Rc::clone(&self.0))
@@ -17,7 +47,11 @@ impl Clone for Tensor {
 }
 impl Add for &Tensor {
     type Output = Tensor;
-    fn add(self, other: &Tensor) -> Tensor {
+    fn add(self, other: &Tensor) -> Tensor{
+        if self.0.borrow().shape != other.0.borrow().shape {
+            println!("Shapes are not compatibile, result is LHS.");
+            return self.clone()
+        };
         let shape = self.0.borrow().shape.clone();
         let size: usize = shape.iter().product();
         let output = TensorData {
@@ -26,6 +60,7 @@ impl Add for &Tensor {
                   .map(|(a,b)| a+b ).collect(),
             grad: vec![0.0f32; size],
             shape: shape,
+            children: vec![self.clone(), other.clone()],
         };
         Tensor(Rc::new(RefCell::new(output)))
     }

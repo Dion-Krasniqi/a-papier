@@ -5,13 +5,18 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
+mod tensor;
 mod scalar;
 use crate::scalar::neuron::definitions::*;
 use crate::scalar::neuron::definitions::NONL as NONL;
 use crate::scalar::value::definitions::*;
+use crate::tensor::tensor::*;
 
 fn main(){
-
+    let t = Tensor::tensor([2,4].to_vec());
+    let b = Tensor::tensor([2,3].to_vec());
+    &t.print();
+    /*
     // test
     let L = MLP::new(3, [4,4,1].to_vec());
 
@@ -51,5 +56,6 @@ fn main(){
 
     let xtest = vec![Val::new(2.0),Val::new(2.0),Val::new(-2.0)];
     &(L.call(xtest, NONL::tanh))[0].print();
+    */
 
 }
