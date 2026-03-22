@@ -14,8 +14,9 @@ use crate::tensor::tensor::*;
 
 fn main(){
     let t = Tensor::tensor([2,4].to_vec());
-    let b = Tensor::tensor([2,3].to_vec());
-    &t.print();
+    let b = Tensor::tensor_one(1.0,[2,4].to_vec());
+    let sum = &t + &b;
+    &sum.add_backward();
     /*
     // test
     let L = MLP::new(3, [4,4,1].to_vec());

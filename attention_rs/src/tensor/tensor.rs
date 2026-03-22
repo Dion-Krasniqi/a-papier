@@ -39,6 +39,15 @@ impl Tensor {
         println!("data: {:?}", data.data);
         println!("grade: {:?}", data.grad);
     }
+    //backward functions
+    pub fn add_backward(&self) {
+        let grad = &self.0.borrow().grad;
+        for child in &self.0.borrow().children {
+            for (s_grad, o_grad) in child.0.borrow_mut().grad.iter_mut().zip(grad) {
+                *s_grad += o_grad;
+            }
+        }
+    }
 }
 impl Clone for Tensor {
     fn clone(&self) -> Tensor {
