@@ -5,65 +5,6 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
-fn main() {
-    // example
-    let x1 = &Val::new(2.0);
-    let x2 = &Val::new(0.0);
-    let w1 = &Val::new(-3.0);
-    let w2 = &Val::new(1.0);
-    let b = &Val::new(6.881373);
-    let x1w1 = x1*w1;
-    let x2w2 = x2*w2;
-    let x1w1x2w2 = &x1w1 + &x2w2;
-    let n = &x1w1x2w2 + b;
-    let mut O = ValRef::tanh(&n);
-
-    // manual back prop
-    O.get_grad();
-    O.set_grad(1.0);
-    n.set_grad(1.0-O.0.borrow().data.powf(2.0));
-    x1w1x2w2.set_grad(1.0 * n.0.borrow().grad);
-    b.set_grad(1.0 * n.0.borrow().grad);
-    x1w1.set_grad(1.0 * x1w1x2w2.0.borrow().grad);
-    x2w2.set_grad(1.0 * x1w1x2w2.0.borrow().grad);
-    x1.set_grad(w1.0.borrow().data * /*cuz chain rule*/ x1w1.0.borrow().grad);
-    w1.set_grad(x1.0.borrow().data * x1w1.0.borrow().grad);
-    x2.set_grad(w2.0.borrow().data * x2w2.0.borrow().grad);
-    w2.set_grad(x2.0.borrow().data * x2w2.0.borrow().grad);
-
-    O.print();
-    n.print();
-    x1w1x2w2.print();
-    b.print();
-    x1.print();
-    w1.print();
-    x2.print();
-    w2.print();
-
-    // end of manual back prop
-    // Same example using backward function
-    let x1 = &Val::new(2.0);
-    let x2 = &Val::new(0.0);
-    let w1 = &Val::new(-3.0);
-    let w2 = &Val::new(1.0);
-    let b = &Val::new(6.881373);
-    let x1w1 = x1*w1;
-    let x2w2 = x2*w2;
-    let x1w1x2w2 = &x1w1 + &x2w2;
-    let n = &x1w1x2w2 + b;
-    let mut O = ValRef::tanh(&n);
-    O.backward();
-    O.print();
-    n.print();
-    x1w1x2w2.print();
-    b.print();
-    x1.print();
-    w1.print();
-    x2.print();
-    w2.print();
-
-}
-
 enum Op {
     Add,
     Mul,
