@@ -15,8 +15,13 @@ use crate::tensor::tensor::*;
 fn main(){
     let t = Tensor::tensor([2,4].to_vec());
     let b = Tensor::tensor_one(1.0,[2,4].to_vec());
-    let sum = matadd_forward(&t,&b);
-    matadd_backward(&sum, &t, &b);
+    let sum = add_forward(&t,&b);
+    add_backward(&sum, &t, &b);
     &t.print();
+
+    let b1 = Tensor::tensor_one(2.0,[2,3].to_vec());
+    let b2 = Tensor::tensor_one(1.0,[3,1].to_vec());
+    &matmul_forward(&b1, &b2).print();
+    
 
 }
