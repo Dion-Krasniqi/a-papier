@@ -45,7 +45,8 @@ impl Clone for Tensor {
     fn clone(&self) -> Tensor {
         Tensor(Rc::clone(&self.0))
     }
-}/*
+}
+/*
 impl Add for &Tensor {
     type Output = Tensor;
     fn add(self, other: &Tensor) -> Tensor{
@@ -67,6 +68,11 @@ impl Add for &Tensor {
     }
 }
 */
+pub fn set_grad(a: &Tensor, val: f32) {
+    for ag in a.0.borrow_mut().grad.iter_mut() {
+        *ag = val;
+    };
+}
 pub fn add_forward(a: &Tensor, b: &Tensor) -> Tensor {
     if a.0.borrow().shape != b.0.borrow().shape {
             println!("Shapes are not compatibile, result is LHS.");
@@ -122,7 +128,7 @@ pub fn matmul_forward(a: &Tensor, b: &Tensor) -> Tensor {
         shape,
         children: vec![a.clone(), b.clone()],
     };
-    return Tensor(Rc::new(RefCell::new(output)))
+    Tensor(Rc::new(RefCell::new(output)))
 }
 pub fn matmul_backward(out: &Tensor, a: &Tensor, b: &Tensor) {
     let out_grad = out.0.borrow().grad.clone(); // a: mxn , b: nxp, out: mxp , out_grad: mxp
@@ -168,4 +174,22 @@ pub fn matmul_backward(out: &Tensor, a: &Tensor, b: &Tensor) {
     }
     a.0.borrow_mut().grad = a_vec.clone();
     b.0.borrow_mut().grad = b_vec.clone();
+}
+pub fn tanh_forward(a: &Tensor) -> Tensor {
+    let size = a.0.borrow().shape.iter().product();
+    //data.iter_mut().zip(a.0.borrow().data).map(|(o,a)| *o + a);
+    let output = TensorData {
+        data: a.0.borrow().data.clone().iter_mut().map(|o| o.tanh() ).collect(),
+        shape: a.0.borrow().shape.clone(),
+        grad: vec![0.0f32;size],
+        children: vec![a.clone()],
+    };
+    Tensor(Rc::new(RefCell::new(output)))
+}
+pub fn tanh_backward(out: &Tensor, a: &Tensor) {
+    let out_data = out.0.borrow().data.clone();
+    let out_grad = out.0.borrow().grad.clone();
+    for i in 0..out_data.len() {
+        a.0.borrow_mut().grad[i] += (1.0 - out_data[i].powf(2.0)) * out_grad[i];
+    };
 }

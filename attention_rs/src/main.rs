@@ -13,17 +13,21 @@ use crate::scalar::value::definitions::*;
 use crate::tensor::tensor::*;
 
 fn main(){
-    let t = Tensor::tensor([2,4].to_vec());
-    let b = Tensor::tensor_one(1.0,[2,4].to_vec());
-    let sum = add_forward(&t,&b);
-    add_backward(&sum, &t, &b);
-    &t.print();
-
-    let b1 = Tensor::tensor_one(2.0,[2,3].to_vec());
-    let b2 = Tensor::tensor_one(1.0,[3,1].to_vec());
-    let out  = matmul_forward(&b1, &b2);
-    &matmul_backward(&out, &b1, &b2);
-    &b1.print();
-    
+    let t1 = Tensor::tensor([2,4].to_vec());
+    let t2 = Tensor::tensor([2,4].to_vec());
+    let ot = add_forward(&t1,&t2);
+    let b = Tensor::tensor([4,3].to_vec());
+    let bot = matmul_forward(&ot, &b);
+    let loss = tanh_forward(&bot);
+    set_grad(&loss, 1.0);
+    tanh_backward(&loss, &bot);
+    matmul_backward(&bot, &b, &ot);
+    add_backward(&ot, &t1, &t2);
+    &loss.print();
+    &bot.print();
+    &b.print();
+    &ot.print();
+    &t1.print();
+    &t2.print();    
 
 }
