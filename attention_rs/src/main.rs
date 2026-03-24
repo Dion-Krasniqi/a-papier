@@ -21,7 +21,9 @@ fn main(){
 
     let b1 = Tensor::tensor_one(2.0,[2,3].to_vec());
     let b2 = Tensor::tensor_one(1.0,[3,1].to_vec());
-    &matmul_forward(&b1, &b2).print();
+    let out  = matmul_forward(&b1, &b2);
+    &matmul_backward(&out, &b1, &b2);
+    &b1.print();
     
 
 }
