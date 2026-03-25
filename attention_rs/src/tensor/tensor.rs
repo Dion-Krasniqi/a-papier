@@ -179,7 +179,7 @@ pub fn tanh_forward(a: &Tensor) -> Tensor {
     let size = a.0.borrow().shape.iter().product();
     //data.iter_mut().zip(a.0.borrow().data).map(|(o,a)| *o + a);
     let output = TensorData {
-        data: a.0.borrow().data.clone().iter_mut().map(|o| o.tanh() ).collect(),
+        data: a.0.borrow().data.clone().iter().map(|o| o.tanh() ).collect(),
         shape: a.0.borrow().shape.clone(),
         grad: vec![0.0f32;size],
         children: vec![a.clone()],
@@ -196,7 +196,7 @@ pub fn tanh_backward(out: &Tensor, a: &Tensor) {
 pub fn relu_forward(a: &Tensor) -> Tensor {
     let size: usize = a.0.borrow().shape.iter().product();
     let output = TensorData {
-        data: a.0.borrow().data.clone().iter_mut().map(|o| if *o > 0.0 { *o } else { 0.0 }).collect(),
+        data: a.0.borrow().data.clone().iter().map(|o| if *o > 0.0 { *o } else { 0.0 }).collect(),
         grad: vec![0.0f32;size],
         shape: a.0.borrow().shape.clone(),
         children: vec![a.clone()],
@@ -208,5 +208,58 @@ pub fn relu_backward(out: &Tensor, a: &Tensor) {
     let out_grad = out.0.borrow().grad.clone();
     for i in 0..out_data.len() {
         a.0.borrow_mut().grad[i] += (if out_data[i] > 0.0 { 1.0 } else { 0.0 }) * out_grad[i];
+    }
+}
+pub fn sigmoid_forward(a: &Tensor) -> Tensor {
+    let size: usize = a.0.borrow().shape.iter().product();
+    let output = TensorData {
+        data: a.0.borrow().data.clone().iter_mut().map(|o| 1.0/(1.0+(-(*o)).exp())).collect(),
+        grad: vec![0.0f32;size],
+        shape: a.0.borrow().shape.clone(),
+        children: vec![a.clone()],
+    };
+    Tensor(Rc::new(RefCell::new(output)))
+}
+pub fn sigmoid_backward(out: &Tensor, a: &Tensor) {
+    let out_data = out.0.borrow().data.clone();
+    let out_grad = out.0.borrow().grad.clone();
+    for i in 0..out_data.len() {
+        a.0.borrow_mut().grad[i] += (out_data[i] - out_data[i].powf(2.0)) * out_grad[i];
+    }
+}
+pub fn softmax_forward(a: &Tensor) -> Tensor {
+    let size: usize = a.0.borrow().shape.iter().product();  
+    let exp_sum: f32 = a.0.borrow().data.iter().map(|o|o.exp()).sum();
+    let output = TensorData {
+        data: a.0.borrow().data.clone().iter().map(|o|(*o).exp()/exp_sum).collect(),
+        grad: vec![0.0f32;size],
+        shape: a.0.borrow().shape.clone(),
+        children: vec![a.clone()],
+    };
+    Tensor(Rc::new(RefCell::new(output)))
+}
+pub fn softmax_backward(out: &Tensor, a: &Tensor) {
+    let exp_sum: f32 = a.0.borrow().data.iter().map(|o|o.exp()).sum();
+    // fx = e(ai)/exp_sum, a/h - d(a/h)/dx -> d(a/h)/dx = a'h - ah' / h^2
+    // when fx at i and ai
+    // d(fx)/d(ai) = e(ai) * sum - (sum')* e(ai) / (sum^2), d(sum)/d(ai) = (e(a1) + e(a2) + ... + e(ai) + ... + e(an)) * e(ai) = e(ai)
+    // d(fx)/d(ai) = e(ai)*sum - e(ai)^2 / sum^2
+    // when fx at i and a j (j!=i)
+    // d(fx)/d(aj) = e(ai)' * sum - (sum') * e(ai) / sum^2, e(ai)' = 0, since its d(fx) per d(aj) so e(ai) as const
+    // d(fx)/d(aj) = 0 - e(aj)*e(ai)/ sum^2 -> e(aj)*e(ai)/sum^2
+    let a_data = a.0.borrow().data.clone();
+    let out_data = out.0.borrow().data.clone();
+    let out_grad = out.0.borrow().grad.clone();
+    //matrix
+    let squared_sum = exp_sum.powf(2.0);
+    for i in 0..out_data.len(){
+        for j in 0..out_data.len(){
+            if i==j {
+                a.0.borrow_mut().grad[i] += (a_data[i] * exp_sum - a_data[i].powf(2.0))
+                / squared_sum * out_grad[i];
+            } else {
+                a.0.borrow_mut().grad[i] += (a_data[j] * a_data[i]) / squared_sum * out_grad[j];
+            }
+        }
     }
 }

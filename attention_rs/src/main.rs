@@ -18,12 +18,15 @@ fn main(){
     let ot = add_forward(&t1,&t2);
     let b = Tensor::tensor([4,3].to_vec());
     let bot = matmul_forward(&ot, &b);
-    let loss = tanh_forward(&bot);
+    let tot = tanh_forward(&bot);
+    let loss = softmax_forward(&tot);
     set_grad(&loss, 1.0);
-    tanh_backward(&loss, &bot);
+    softmax_backward(&loss, &tot);
+    tanh_backward(&tot, &bot);
     matmul_backward(&bot, &b, &ot);
     add_backward(&ot, &t1, &t2);
     &loss.print();
+    &tot.print();
     &bot.print();
     &b.print();
     &ot.print();
