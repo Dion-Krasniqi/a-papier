@@ -193,3 +193,20 @@ pub fn tanh_backward(out: &Tensor, a: &Tensor) {
         a.0.borrow_mut().grad[i] += (1.0 - out_data[i].powf(2.0)) * out_grad[i];
     };
 }
+pub fn relu_forward(a: &Tensor) -> Tensor {
+    let size: usize = a.0.borrow().shape.iter().product();
+    let output = TensorData {
+        data: a.0.borrow().data.clone().iter_mut().map(|o| if *o > 0.0 { *o } else { 0.0 }).collect(),
+        grad: vec![0.0f32;size],
+        shape: a.0.borrow().shape.clone(),
+        children: vec![a.clone()],
+    };
+    Tensor(Rc::new(RefCell::new(output)))
+}
+pub fn relu_backward(out: &Tensor, a: &Tensor) {
+    let out_data = out.0.borrow().data.clone();
+    let out_grad = out.0.borrow().grad.clone();
+    for i in 0..out_data.len() {
+        a.0.borrow_mut().grad[i] += (if out_data[i] > 0.0 { 1.0 } else { 0.0 }) * out_grad[i];
+    }
+}
