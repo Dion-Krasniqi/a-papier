@@ -32,5 +32,6 @@ fn main(){
     &ot.print();
     &t1.print();
     &t2.print();    
+    mean(&loss, 2).print();
 
 }

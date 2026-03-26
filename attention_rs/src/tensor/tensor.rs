@@ -109,7 +109,7 @@ pub fn add_forward(a: &Tensor, b: &Tensor) -> Tensor {
 pub fn add_backward(out: &Tensor, a: &Tensor, b: &Tensor) {
     let out_grad = &out.0.borrow().grad;
     for (a_grad, o_grad) in a.0.borrow_mut().grad.iter_mut().zip(out_grad) {
-        *a_grad += 0.0;
+        *a_grad += o_grad;
     }
     for (b_grad, o_grad) in b.0.borrow_mut().grad.iter_mut().zip(out_grad) {
         *b_grad += o_grad;
@@ -134,7 +134,7 @@ pub fn matmul_forward(a: &Tensor, b: &Tensor) -> Tensor {
     for i in 0..m{
         for j in 0..n {
             for k in 0..p {
-                out_vec[i*p+k] += a_vec[i*m+j] * b_vec[k*n+j];
+                out_vec[i*p+k] += a_vec[i*n+j] * b_vec[k*n+j];
             }
         }
     }
@@ -188,8 +188,8 @@ pub fn matmul_backward(out: &Tensor, a: &Tensor, b: &Tensor) {
             }
         }
     }
-    a.0.borrow_mut().grad = a_vec.clone();
-    b.0.borrow_mut().grad = b_vec.clone();
+    a.0.borrow_mut().grad = a_grad;
+    b.0.borrow_mut().grad = b_grad;
 }
 pub fn tanh_forward(a: &Tensor) -> Tensor {
     let size = a.0.borrow().shape.iter().product();
@@ -280,11 +280,60 @@ pub fn softmax_backward(out: &Tensor, a: &Tensor) {
     }
 }
 // matrix
-pub fn mean(a: &Tensor) -> Tensor{
-    let mut sum = 0.0;
-    for a in a.0.borrow().data.iter() {
-        sum += *a;
-    };
-    let output = Tensor::tensor(sum/(a.0.borrow().data.len() as f32), [1,1].to_vec());
-    output
+pub fn mean(a: &Tensor, dim: usize) -> Tensor{
+    // keeps shape
+    // 0 over all, 1 over rows, 2 over cols
+    let mut a_vec = a.0.borrow().data.clone();
+    let rows = a.0.borrow().shape[0];
+    let cols = a.0.borrow().shape[1];
+    match dim {
+        0 => {
+            let mut sum = 0.0;
+            for a in a_vec.iter() {
+                sum += *a;
+            };
+            let output = Tensor::tensor(sum/(a_vec.len() as f32), [rows,cols].to_vec());
+            output
+
+        }
+        1 => {
+            let mut sums = vec![0.0f32;rows];
+            for i in 0..rows {
+                for j in 0..cols {
+                    sums[i] = a_vec[i*cols+j];
+                    if i>0 {
+                        a_vec[(i-1)*cols + j] = sums[i-1];
+                    } 
+                }
+                sums[i] = sums[i]/(rows as f32);
+            };
+            let output = TensorData {
+                data: a_vec,
+                grad: vec![0.0f32;rows*cols],
+                shape: [rows,cols].to_vec(),
+                children: vec![a.clone()],
+            };
+            Tensor(Rc::new(RefCell::new(output)))
+        }
+        _ => {
+            let mut sums = vec![0.0f32;cols];
+            for i in 0..cols {
+                for j in 0..rows {
+                    sums[i] = a_vec[i*rows+j];
+                    if i>0 {
+                        a_vec[(i-1)*rows + j] = sums[i-1];
+                    } 
+                }
+                sums[i] = sums[i]/(cols as f32);
+            };
+            let output = TensorData {
+                data: a_vec,
+                grad: vec![0.0f32;rows*cols],
+                shape: [rows,cols].to_vec(),
+                children: vec![a.clone()],
+            };
+            Tensor(Rc::new(RefCell::new(output)))
+        }
+
+    }
 }
