@@ -12,7 +12,8 @@ struct TensorData {
 }
 pub struct Tensor(Rc<RefCell<TensorData>>);
 impl Tensor {
-    pub fn tensor(shape: Vec<usize>) -> Tensor {
+    // add seed option
+    pub fn tensor_rand(shape: Vec<usize>) -> Tensor {
         let size: usize = shape.iter().product();
         let data: Vec<f32> = (0..size).map(|_| random::<f32>()).collect();
         let output = TensorData {
@@ -23,7 +24,7 @@ impl Tensor {
         };
         Tensor(Rc::new(RefCell::new(output)))
     }
-    pub fn tensor_one(value: f32, shape: Vec<usize>) -> Tensor {
+    pub fn tensor(value: f32, shape: Vec<usize>) -> Tensor {
         let size: usize = shape.iter().product();
         let data = vec![value;size];
         let output = TensorData {
@@ -34,11 +35,31 @@ impl Tensor {
         };
         Tensor(Rc::new(RefCell::new(output)))
     }
+    pub fn tensor_zero(shape: Vec<usize>) -> Tensor {
+        Tensor::tensor(0.0, shape)
+    }
+    pub fn tensor_one(shape: Vec<usize>) -> Tensor {
+        Tensor::tensor(1.0, shape)
+    }
     pub fn print(&self) {
         let data = self.0.borrow();
         println!("shape: {:?}", data.shape);
         println!("data: {:?}", data.data);
         println!("grad: {:?}", data.grad);
+    }
+    pub fn set_grad(&self, val: f32) {
+        for g in self.0.borrow_mut().grad.iter_mut() {
+            *g = val;
+        };
+    }
+    pub fn data(&self) -> Vec<f32> {
+        self.0.borrow().data.clone()
+    }
+    pub fn grad(&self) -> Vec<f32> {
+        self.0.borrow().grad.clone()
+    }
+    pub fn shape(&self) -> Vec<usize> {
+        self.0.borrow().shape.clone()
     }
 }
 impl Clone for Tensor {
@@ -68,11 +89,6 @@ impl Add for &Tensor {
     }
 }
 */
-pub fn set_grad(a: &Tensor, val: f32) {
-    for ag in a.0.borrow_mut().grad.iter_mut() {
-        *ag = val;
-    };
-}
 pub fn add_forward(a: &Tensor, b: &Tensor) -> Tensor {
     if a.0.borrow().shape != b.0.borrow().shape {
             println!("Shapes are not compatibile, result is LHS.");
@@ -262,4 +278,13 @@ pub fn softmax_backward(out: &Tensor, a: &Tensor) {
             }
         }
     }
+}
+// matrix
+pub fn mean(a: &Tensor) -> Tensor{
+    let mut sum = 0.0;
+    for a in a.0.borrow().data.iter() {
+        sum += *a;
+    };
+    let output = Tensor::tensor(sum/(a.0.borrow().data.len() as f32), [1,1].to_vec());
+    output
 }
