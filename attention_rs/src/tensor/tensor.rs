@@ -372,12 +372,9 @@ pub fn layernorm_forward(a: &Tensor, betta: f32, gamma: f32) -> Tensor {
     Tensor(Rc::new(RefCell::new(output)))
 }
 pub fn layernorm_backward(out: &Tensor, a: &Tensor, betta: f32, gamma: f32) {
-    out_shape = out.0.borrow().data;
-    out_grad = out.0.borrow().grad;
-    a_grad = a.0.borrow().grad;
-    for i in 0..a_grad.len() {
-        a_grad[i] += 1 * out_grad[i];
-    }
+    let out_data = out.0.borrow().data;
+    let out_grad = out.0.borrow().grad;
+    let a_grad = a.0.borrow().grad;
     // dL/d(a) = DL/d(a_norm) * d(a_norm)/d(a)
     // dL/d(gamma) = DL/d(a_norm) * d(a_norm)/d(gamma)
     // d(a_norm[i])/d(gamma) = (a[i] - E[X])/(E[X^2] - E[X]^2 + 1e-5)^-1/2
@@ -385,6 +382,21 @@ pub fn layernorm_backward(out: &Tensor, a: &Tensor, betta: f32, gamma: f32) {
 
 
 }
-pub fn embedding_forward(vocab: &[usize]) -> Tensor {
+pub fn embedding_forward(token: &[usize], weight: &Tensor) -> Tensor {
+    let cols = weight.0.borrow().shape[1];
+    let w_vec = weight.0.borrow().data.clone();
 
+    let mut out = vec![0.0f32;token.len()*cols];
+    for (i, &token) in token.iter().enumerate() {
+        for j in 0..cols {
+            out[i*cols+j] = w_vec[token*cols+j];
+        }
+    }
+    let output = TensorData {
+        data: out,
+        grad: vec![0.0f32;token.len()*cols],
+        shape: vec![token.len(),cols],
+        children: vec![weight.clone()],
+    };
+    Tensor(Rc::new(RefCell::new(output)))
 }
