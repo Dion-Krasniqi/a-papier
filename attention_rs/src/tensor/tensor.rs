@@ -371,3 +371,20 @@ pub fn layernorm_forward(a: &Tensor, betta: f32, gamma: f32) -> Tensor {
     };
     Tensor(Rc::new(RefCell::new(output)))
 }
+pub fn layernorm_backward(out: &Tensor, a: &Tensor, betta: f32, gamma: f32) {
+    out_shape = out.0.borrow().data;
+    out_grad = out.0.borrow().grad;
+    a_grad = a.0.borrow().grad;
+    for i in 0..a_grad.len() {
+        a_grad[i] += 1 * out_grad[i];
+    }
+    // dL/d(a) = DL/d(a_norm) * d(a_norm)/d(a)
+    // dL/d(gamma) = DL/d(a_norm) * d(a_norm)/d(gamma)
+    // d(a_norm[i])/d(gamma) = (a[i] - E[X])/(E[X^2] - E[X]^2 + 1e-5)^-1/2
+    // d(a_norm[i])/d(a[j]) = 
+
+
+}
+pub fn embedding_forward(vocab: &[usize]) -> Tensor {
+
+}
