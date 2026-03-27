@@ -300,13 +300,16 @@ pub fn mean(a: &Tensor, dim: usize) -> Tensor{
             let mut sums = vec![0.0f32;rows];
             for i in 0..rows {
                 for j in 0..cols {
-                    sums[i] = a_vec[i*cols+j];
+                    sums[i] += a_vec[i*cols+j];
                     if i>0 {
                         a_vec[(i-1)*cols + j] = sums[i-1];
                     } 
                 }
-                sums[i] = sums[i]/(rows as f32);
+                sums[i] /= cols as f32;
             };
+            for i in 0..cols {
+                a_vec[i] = sums[0];
+            }
             let output = TensorData {
                 data: a_vec,
                 grad: vec![0.0f32;rows*cols],
@@ -319,13 +322,16 @@ pub fn mean(a: &Tensor, dim: usize) -> Tensor{
             let mut sums = vec![0.0f32;cols];
             for i in 0..cols {
                 for j in 0..rows {
-                    sums[i] = a_vec[i*rows+j];
+                    sums[i] += a_vec[i*rows+j];
                     if i>0 {
                         a_vec[(i-1)*rows + j] = sums[i-1];
                     } 
                 }
-                sums[i] = sums[i]/(cols as f32);
+                sums[i] /= rows as f32;
             };
+            for i in 0..rows {
+                a_vec[i+cols] = sums[0];
+            }
             let output = TensorData {
                 data: a_vec,
                 grad: vec![0.0f32;rows*cols],
@@ -336,4 +342,32 @@ pub fn mean(a: &Tensor, dim: usize) -> Tensor{
         }
 
     }
+}
+pub fn layernorm_forward(a: &Tensor, betta: f32, gamma: f32) -> Tensor {
+    let rows = a.0.borrow().shape[0];
+    let cols = a.0.borrow().shape[1];
+    let a_vec = a.0.borrow().data.clone();
+    let mut sum = vec![(0.0f32,0.0f32);rows];
+    for i in 0..rows {
+        for j in 0..cols {
+            sum[i].0 += a_vec[i*cols+j];
+            sum[i].1 += a_vec[i*cols+j].powf(2.0);
+        }
+        sum[i].0 /= cols as f32; //E[X]
+        sum[i].1 /= cols as f32; //E[X^2]
+        sum[i].1 -= sum[i].0.powf(2.0); //Var(x) = E[X^2] - E[X]^2
+    }
+    let mut a_norm = vec![0.0f32;rows*cols];
+    for i in 0..rows {
+        for j in 0..cols {
+            a_norm[i*cols+j] += gamma*(a_vec[i*cols+j] - sum[i].0)/(sum[i].1 + 1e-5).sqrt() + betta;
+        }
+    }
+    let output = TensorData {
+        data: a_norm,
+        grad: vec![0.0f32;rows*cols],
+        shape: a.0.borrow().shape.clone(),
+        children: vec![a.clone()],
+    };
+    Tensor(Rc::new(RefCell::new(output)))
 }
