@@ -372,6 +372,8 @@ pub fn layernorm_forward(a: &Tensor, betta: f32, gamma: f32) -> Tensor {
     Tensor(Rc::new(RefCell::new(output)))
 }
 pub fn layernorm_backward(out: &Tensor, a: &Tensor, betta: f32, gamma: f32) {
+    // TODO betta and gamma will be weight tensors so also update their gradient, think about mean aswell
+    let eps = 1e-5;
     let rows = out.0.borrow().shape[0];
     let cols = out.0.borrow().shape[1];
     let out_data = out.0.borrow().data.clone();
@@ -382,7 +384,7 @@ pub fn layernorm_backward(out: &Tensor, a: &Tensor, betta: f32, gamma: f32) {
     for (o_w, o_g) in out_wo_gamma_grad.iter_mut().zip(&out_grad) {
         *o_w += o_g * gamma;
     }
-    // dl/varx = -1/2 * gamma * sum(douti * (out_datai)/ (Varx + 1.5e))
+    // dl/varx = -1/2 * gamma * sum(douti * (out_datai)/ (Varx + eps))
     let mut varexs = vec![(0.0f32, 0.0f32);rows];
     // just gonna keep the logic for now
     for i in 0..rows {
@@ -396,16 +398,39 @@ pub fn layernorm_backward(out: &Tensor, a: &Tensor, betta: f32, gamma: f32) {
     }
     let mut dvarx = 0.0;
     for i in 0..out_data.len(){
-        dvarx += out_grad[i] * out_data[i] / varexs[i].1;
+        dvarx += out_grad[i] * out_data[i] / (varexs[i].1 + eps);
     }
     dvarx *= -0.5 * gamma;
-    // dl/dmean = - sqrt(Varx + 1.5e)
+    // dl/dmean = - sqrt(Varx + eps)
     let mut dmean = 0.0;
-    for (sum, var) in varexs {
-        dmean -= var;
+    for (sum, var) in &varexs {
+        dmean -= (var + eps).sqrt();
     }
     // dl/dai = dl/dout * dout/dai + dl/dmean*dmean/dai + dl/dvarx*dvarx/dai
     //
+    //from here only need sqrt(varx-eps)
+    for (_, var) in varexs.iter_mut() {
+        *var = (*var + eps).sqrt();
+    }
+    let mut a_grad = vec![0.0f32;rows*cols];
+    // entries are all out grads summed per row
+    let mut douti = vec![0.0f32;rows];
+    for i in 0..rows {
+        for j in 0..cols {
+            douti[i] = out_grad[i*cols+j];
+        }
+    }
+    // same thing as above just each grad * out/gamma
+    let mut douti_row = vec![0.0f32;rows];
+    for i in 0..rows {
+        for j in 0..cols {
+            douti[i] = out_grad[i*cols+j]*out_data[i*cols+j]/gamma;
+        }
+    }
+    for i in 0..a_grad.len() {
+        a_grad[i] += gamma * (varexs[i].1).sqrt()/(cols as f32) - ((cols as f32)*out_grad[i] - douti[i/cols] 
+        - out_data[i]/gamma*douti_row[i/cols]);
+    }
 }
 pub fn embedding_forward(token: &[usize], weight: &Tensor) -> Tensor {
     let cols = weight.0.borrow().shape[1];
