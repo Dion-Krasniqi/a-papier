@@ -452,3 +452,13 @@ pub fn embedding_forward(token: &[usize], weight: &Tensor) -> Tensor {
     };
     Tensor(Rc::new(RefCell::new(output)))
 }
+pub fn embedding_backward(out: &Tensor, weight: &Tensor, token: &[usize]) {
+    // dl/dw = dl/dout * dout/dw = dl/dout
+    let out_grad = out.0.borrow().grad.clone();
+    let cols = out.0.borrow().shape[1];
+    for (i, &token) in token.iter().enumerate() {
+        for j in 0..cols {
+            weight.0.borrow_mut().grad[token*cols+j] += out_grad[i*cols+j];
+        }
+    }
+}
