@@ -434,31 +434,46 @@ pub fn layernorm_backward(out: &Tensor, a: &Tensor, betta: &Tensor, gamma: f32) 
     betta.0.borrow_mut().grad = betta_grad;
     a.0.borrow_mut().grad = a_grad;
 }
-pub fn embedding_forward(token: &[usize], weight: &Tensor) -> Tensor {
+pub fn embedding_forward(tokens: &[usize], weight: &Tensor) -> Tensor {
     let cols = weight.0.borrow().shape[1];
     let w_vec = weight.0.borrow().data.clone();
 
-    let mut out = vec![0.0f32;token.len()*cols];
-    for (i, &token) in token.iter().enumerate() {
+    let mut out = vec![0.0f32;tokens.len()*cols];
+    for (i, &token) in tokens.iter().enumerate() {
         for j in 0..cols {
             out[i*cols+j] = w_vec[token*cols+j];
         }
     }
     let output = TensorData {
         data: out,
-        grad: vec![0.0f32;token.len()*cols],
-        shape: vec![token.len(),cols],
+        grad: vec![0.0f32;tokens.len()*cols],
+        shape: vec![tokens.len(),cols],
         children: vec![weight.clone()],
     };
     Tensor(Rc::new(RefCell::new(output)))
 }
-pub fn embedding_backward(out: &Tensor, weight: &Tensor, token: &[usize]) {
+pub fn embedding_backward(out: &Tensor, weight: &Tensor, tokens: &[usize]) {
     // dl/dw = dl/dout * dout/dw = dl/dout
     let out_grad = out.0.borrow().grad.clone();
     let cols = out.0.borrow().shape[1];
-    for (i, &token) in token.iter().enumerate() {
+    for (i, &token) in tokens.iter().enumerate() {
         for j in 0..cols {
             weight.0.borrow_mut().grad[token*cols+j] += out_grad[i*cols+j];
         }
     }
+}
+pub fn cross_entropy_forward(a: &Tensor, targets: &[usize]) -> f32 {
+    let cols = a.0.borrow().shape[1];
+    let probs = a.0.borrow().data.clone();
+    let mut loss = 0.0;
+    for (i, &target) in targets.iter().enumerate() {
+        loss -= probs[i*cols+target].ln();
+    }
+    loss / targets.len() as f32
+}
+pub fn softmax_cross_entropy_backward(a: &Tensor, targets: &[usize]) {
+    let a_vec = a.0.borrow().data.clone();
+    let mut a_grad = a.0.borrow().grad.clone();
+    let rows = a.0.borrow().shape[0];
+    let cols = a.0.borrow().shape[1];
 }
