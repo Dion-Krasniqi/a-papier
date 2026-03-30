@@ -2,6 +2,7 @@ use std::ops::{Add, Mul};
 use std::rc::Rc;
 use std::cell::RefCell;
 use rand::random;
+use std::collections::HashMap;
 
 struct TensorData {
     data: Vec<f32>, // no matter the dim, the data is stored in order and shape "determines" dimension
@@ -471,9 +472,31 @@ pub fn cross_entropy_forward(a: &Tensor, targets: &[usize]) -> f32 {
     }
     loss / targets.len() as f32
 }
-pub fn softmax_cross_entropy_backward(a: &Tensor, targets: &[usize]) {
-    let a_vec = a.0.borrow().data.clone();
-    let mut a_grad = a.0.borrow().grad.clone();
+pub fn cross_entropy_backward(a: &Tensor, targets: &[usize]) {
     let rows = a.0.borrow().shape[0];
     let cols = a.0.borrow().shape[1];
+    for (i, &target) in targets.iter().enumerate() {
+        a.0.borrow_mut().grad[i*cols+target] -= 1.0; 
+    }
+}
+
+pub struct Tokenizer {
+    vocab: HashMap<char, usize>,
+    reverse: HashMap<usize, char>,
+}
+
+impl Tokenizer {
+    pub fn new(text: &str) -> Tokenizer {
+        let mut vocab = HashMap::new();
+        let mut reverse = HashMap::new();
+        let mut id = 0;
+        for t in text.chars() {
+            if !vocab.contains_key(&t) {
+                vocab.insert(t, id);
+                reverse.insert(id, t);
+                id += 1;
+            }
+        }
+        Tokenizer { vocab, reverse}
+    }
 }
