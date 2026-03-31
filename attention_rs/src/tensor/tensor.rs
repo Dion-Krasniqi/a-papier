@@ -484,7 +484,6 @@ pub struct Tokenizer {
     vocab: HashMap<char, usize>,
     reverse: HashMap<usize, char>,
 }
-
 impl Tokenizer {
     pub fn new(text: &str) -> Tokenizer {
         let mut vocab = HashMap::new();
@@ -498,5 +497,11 @@ impl Tokenizer {
             }
         }
         Tokenizer { vocab, reverse}
+    }
+    pub fn encode(&self, text: &str) -> Vec<usize> {
+        text.chars().map(|t| self.vocab[&t]).collect()
+    }
+    pub fn decode(&self, token: &[usize]) -> String {
+        token.iter().map(|t| self.reverse[&t]).collect()
     }
 }

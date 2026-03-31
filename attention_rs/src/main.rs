@@ -30,5 +30,11 @@ fn main(){
     add_backward(&ot, &t1, &t2);
     &bloss.print();
     &loss.print();   
+    let tokenizer = Tokenizer::new(".abcdefghijklmnopqrstuvxyz");
+    let hello_token = tokenizer.encode(".hello.");
+    println!("{:?}", hello_token);
+    let hello_decode = tokenizer.decode(&hello_token);
+    println!("{}",hello_decode);
+
 
 }
