@@ -14,7 +14,7 @@ struct TensorData {
 pub struct Tensor(Rc<RefCell<TensorData>>);
 impl Tensor {
     // add seed option
-    pub fn tensor_rand(shape: Vec<usize>) -> Tensor {
+    pub fn rand(shape: Vec<usize>) -> Tensor {
         let size: usize = shape.iter().product();
         let data: Vec<f32> = (0..size).map(|_| random::<f32>()).collect();
         let output = TensorData {
@@ -503,5 +503,8 @@ impl Tokenizer {
     }
     pub fn decode(&self, token: &[usize]) -> String {
         token.iter().map(|t| self.reverse[&t]).collect()
+    }
+    pub fn get_vocab_len(&self) -> usize {
+        self.vocab.len()
     }
 }
