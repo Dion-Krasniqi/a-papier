@@ -13,28 +13,14 @@ use crate::scalar::value::definitions::*;
 use crate::tensor::tensor::*;
 
 fn main(){
-    let t1 = Tensor::tensor_rand([2,4].to_vec());
-    let t2 = Tensor::tensor_rand([2,4].to_vec());
-    let ot = add_forward(&t1,&t2);
-    let b = Tensor::tensor_rand([4,3].to_vec());
-    let bot = matmul_forward(&ot, &b);
-    let tot = tanh_forward(&bot);
-    let loss = softmax_forward(&tot);
-    let betta = Tensor::tensor_rand([2,3].to_vec());
-    let bloss = layernorm_forward(&loss, &betta, 1.0);
-    bloss.set_grad(1.0);
-    layernorm_backward(&bloss, &loss, &betta, 1.0);
-    softmax_backward(&loss, &tot);
-    tanh_backward(&tot, &bot);
-    matmul_backward(&bot, &b, &ot);
-    add_backward(&ot, &t1, &t2);
-    &bloss.print();
-    &loss.print();   
-    let tokenizer = Tokenizer::new(".abcdefghijklmnopqrstuvxyz");
-    let hello_token = tokenizer.encode(".hello.");
-    println!("{:?}", hello_token);
-    let hello_decode = tokenizer.decode(&hello_token);
-    println!("{}",hello_decode);
-
-
+    // since just character level for now
+    let text = std::fs::read_to_string("src/tensor/data.txt").unwrap();
+    let tokenizer = Tokenizer::new(&text);
+    let tokens = tokenizer.encode(&text);
+    let vocab_size = tokenizer.get_vocab_len();
+    let emb_dim: usize = 10;
+    let emb_w = Tensor::rand(vec![vocab_size, emb_dim]);
+    let emb = embedding_forward(&tokens,&emb_w);
+    let block_size: usize = 128; //dummy for now
+    let pe = positional_encoding(block_size, emb_dim);
 }

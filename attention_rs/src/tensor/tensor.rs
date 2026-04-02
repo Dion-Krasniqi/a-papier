@@ -36,10 +36,10 @@ impl Tensor {
         };
         Tensor(Rc::new(RefCell::new(output)))
     }
-    pub fn tensor_zero(shape: Vec<usize>) -> Tensor {
+    pub fn zero(shape: Vec<usize>) -> Tensor {
         Tensor::tensor(0.0, shape)
     }
-    pub fn tensor_one(shape: Vec<usize>) -> Tensor {
+    pub fn one(shape: Vec<usize>) -> Tensor {
         Tensor::tensor(1.0, shape)
     }
     pub fn print(&self) {
@@ -479,7 +479,25 @@ pub fn cross_entropy_backward(a: &Tensor, targets: &[usize]) {
         a.0.borrow_mut().grad[i*cols+target] -= 1.0; 
     }
 }
-
+pub fn positional_encoding(seq_len: usize, emb_dim: usize) -> Tensor {
+    let mut data = vec![0.0f32;seq_len*emb_dim];
+    for i in 0..seq_len {
+        for j in 0..emb_dim {
+            data[i*emb_dim+j] = if j%2==0 {
+                (j as f32/1000_f32.powf(2. * j as f32/emb_dim as f32)).sin()
+            } else {
+                (j as f32/1000_f32.powf(2. * j as f32/emb_dim as f32)).cos()
+            };
+        }
+    }
+    let output = TensorData {
+        data,
+        grad: vec![0.0f32;seq_len*emb_dim],
+        shape: vec![seq_len, emb_dim],
+        children: Vec::new(),
+    };
+    Tensor(Rc::new(RefCell::new(output)))
+}
 pub struct Tokenizer {
     vocab: HashMap<char, usize>,
     reverse: HashMap<usize, char>,
