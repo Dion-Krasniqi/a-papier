@@ -498,6 +498,27 @@ pub fn positional_encoding(seq_len: usize, emb_dim: usize) -> Tensor {
     };
     Tensor(Rc::new(RefCell::new(output)))
 }
+pub fn transpose(a: &Tensor) -> Tensor {
+    let a_vec = a.0.borrow().data.clone();
+    let a_grad = a.0.borrow().grad.clone();
+    let rows = a.0.borrow().shape[0];
+    let cols = a.0.borrow().shape[1];
+    let mut data = vec![0.0f32;rows*cols];
+    let mut grad = vec![0.0f32;rows*cols];
+    for i in 0..rows {
+        for j in 0..cols {
+            data[i*cols + j] = a_vec[j*rows+i];
+        }
+    }
+    let output = TensorData {
+        data,
+        grad,
+        shape: vec![cols,rows],
+        children: vec![a.clone()],
+    };
+    Tensor(Rc::new(RefCell::new(output)))
+}
+
 pub struct Tokenizer {
     vocab: HashMap<char, usize>,
     reverse: HashMap<usize, char>,
