@@ -42,4 +42,7 @@ fn main(){
     let softmaxed = softmax_forward(&matmul_forward(&Q_Kt, &scaling_factor));
     let attention = matmul_forward(&softmaxed, &V);
     println!("{:?}", attention.shape());
+    let att_emb_x = add_forward(&pos_emb_x, &attention);
+    let F_W = Tensor::rand(vec![block_size,emb_dim]);
+    let ffn_1 = relu_forward(&(&att_emb_x * &F_W));
 }

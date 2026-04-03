@@ -68,6 +68,19 @@ impl Clone for Tensor {
         Tensor(Rc::clone(&self.0))
     }
 }
+impl Mul for &Tensor {
+    type Output = Tensor;
+    fn mul(self, other: &Tensor) -> Tensor {
+        let shape = self.shape();
+        let output = TensorData{
+            data: self.0.borrow_mut().data.iter().enumerate().map(|(e,i)| i * other.0.borrow().data[e]).collect(),
+            grad: vec![0.0f32;32],
+            shape,
+            children: vec![self.clone(), other.clone()],
+        };
+        Tensor(Rc::new(RefCell::new(output)))
+    }
+}
 /*
 impl Add for &Tensor {
     type Output = Tensor;
