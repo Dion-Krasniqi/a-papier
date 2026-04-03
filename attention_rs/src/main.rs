@@ -43,6 +43,20 @@ fn main(){
     let attention = matmul_forward(&softmaxed, &V);
     println!("{:?}", attention.shape());
     let att_emb_x = add_forward(&pos_emb_x, &attention);
-    let F_W = Tensor::rand(vec![block_size,emb_dim]);
-    let ffn_1 = relu_forward(&(&att_emb_x * &F_W));
+
+    let betta = Tensor::zero(vec![block_size,emb_dim]);
+    let norm_att_x = layernorm_forward(&att_emb_x, &betta, 0.0);
+
+    // super stupid setup for now
+    let F_W2 = Tensor::rand(vec![block_size,emb_dim]);
+    let F_b1 = Tensor::rand(vec![block_size,emb_dim]);
+    
+    let f1 = add_forward(&(&F_W2 * &norm_att_x), &F_b1);
+    let ffn_1 = relu_forward(&f1);
+    let F_W2 = Tensor::rand(vec![block_size,emb_dim]);
+    let F_b2 = Tensor::rand(vec![block_size,emb_dim]);
+    let f2 = &ffn_1 * &F_W2;
+    let ffn_2 = add_forward(&f2, &F_b2);
+    let f_norm_x = layernorm_forward(&ffn_2, &betta, 0.0);
+
 }
