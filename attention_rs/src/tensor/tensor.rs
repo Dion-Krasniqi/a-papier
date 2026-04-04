@@ -619,7 +619,7 @@ impl AttentionHead {
 }
 pub struct FeedForward {
     pub weights: Vec<(Tensor, Tensor)>,
-    pub biases: Vec<(f32,f32)>,
+    pub biases: Vec<(Tensor, Tensor)>,
 }
 impl FeedForward {
     pub fn new(nl: usize, shape: Vec<usize>) -> FeedForward {
@@ -627,18 +627,34 @@ impl FeedForward {
         let mut biases = Vec::new();
         for _ in 0..nl {
             weights.push((Tensor::rand(shape.clone()),Tensor::rand(shape.clone())));
-            biases.push((random::<f32>(),random::<f32>()));
+            biases.push((Tensor::rand(shape.clone()),Tensor::rand(shape.clone())));
         }
         FeedForward { weights, biases }
     }
     pub fn forward(&self, x: &Tensor) -> Vec<Tensor> {
-        let f1 = &(&self.weights[0].0 * x) + self.biases[0].0;
-        let ffn_1 = relu_forward(&f1);
-        let f2 = &ffn_1 * &self.weights[0].1;
-        let ffn_2 = &f2 + self.biases[0].1;
-
+        let mut result = x.clone();
+        for i in 0..self.weights.len() {
+            let f1 = add_forward(&(&self.weights[i].0 * &result), &self.biases[i].0);
+            let ffn_1 = relu_forward(&f1);
+            let f2 = &ffn_1 * &self.weights[i].1;
+            result = add_forward(&f2, &self.biases[i].1);
+        }
+        
         let mut output = Vec::new();
-        output.push(ffn_2);
+        output.push(result);
         output
+    }
+    pub fn parameters(&self) -> Vec<Tensor> {
+        let mut params = Vec::new();
+        // holy :(, well see
+        for (i,j) in &self.weights {
+            params.push(i.clone());
+            params.push(j.clone());
+        };
+        for (i,j) in &self.biases {
+            params.push(i.clone());
+            params.push(j.clone());
+        }
+        params
     }
 }
