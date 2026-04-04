@@ -29,25 +29,16 @@ fn main(){
 
     let head_dim = emb_dim;
 
-    let W_q = Tensor::rand(vec![emb_dim, head_dim]);
-    let W_k = Tensor::rand(vec![emb_dim, head_dim]);
-    let W_v = Tensor::rand(vec![emb_dim, head_dim]);
-    let Q = matmul_forward(&pos_emb_x, &W_q); // Q = pos_emb @ W_q = (block_size x emb_dim) @ (emb_dim x head_dim) = Q(block_size * head_dim)
-    let K = matmul_forward(&pos_emb_x, &W_k);
-    let V = matmul_forward(&pos_emb_x, &W_v);
-    let dk: usize= K.shape().iter().product();
-
-    let Q_Kt = matmul_forward(&Q, &transpose(&K)); // (block_size * head_dim) @ (head_dim * block_size)
-    let scaling_factor = Tensor::tensor(1./((dk as f32).sqrt()), Q_Kt.shape());
-    let softmaxed = softmax_forward(&matmul_forward(&Q_Kt, &scaling_factor));
-    let attention = matmul_forward(&softmaxed, &V);
-    println!("{:?}", attention.shape());
-    let att_emb_x = add_forward(&pos_emb_x, &attention);
+    let attention_layer = AttentionHead::new(vec![emb_dim,head_dim], 1);
+    let attention_head = attention_layer.forward(&pos_emb_x);
+    // just one 
+    let att_emb_x = add_forward(&pos_emb_x, &attention_head[0]);
 
     let betta = Tensor::zero(vec![block_size,emb_dim]);
     let norm_att_x = layernorm_forward(&att_emb_x, &betta, 0.0);
 
     // super stupid setup for now
+
     let F_W2 = Tensor::rand(vec![block_size,emb_dim]);
     let F_b1 = Tensor::rand(vec![block_size,emb_dim]);
     
