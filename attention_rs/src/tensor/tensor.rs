@@ -81,6 +81,32 @@ impl Mul for &Tensor {
         Tensor(Rc::new(RefCell::new(output)))
     }
 }
+impl Mul<f32> for &Tensor {
+    type Output = Tensor;
+    fn mul(self, other: f32) -> Tensor {
+        let shape = self.shape();
+        let output = TensorData{
+            data: self.0.borrow_mut().data.iter().map(|a| a * other).collect(),
+            grad: vec![0.0f32;32],
+            shape,
+            children: vec![self.clone()],
+        };
+        Tensor(Rc::new(RefCell::new(output)))
+    }
+}
+impl Add<f32> for &Tensor {
+    type Output = Tensor;
+    fn add(self, other: f32) -> Tensor {
+        let shape = self.shape();
+        let output = TensorData{
+            data: self.0.borrow_mut().data.iter().map(|a| a + other).collect(),
+            grad: vec![0.0f32;32],
+            shape,
+            children: vec![self.clone()],
+        };
+        Tensor(Rc::new(RefCell::new(output)))
+    }
+}
 /*
 impl Add for &Tensor {
     type Output = Tensor;
@@ -579,8 +605,8 @@ impl AttentionHead {
         let V = matmul_forward(&x, &self.W_v);
         let dk: usize= K.shape().iter().product();   
         let Q_Kt = matmul_forward(&Q, &transpose(&K)); // (block_size * head_dim) @ (head_dim * block_size)
-        let scaling_factor = Tensor::tensor(1./((dk as f32).sqrt()), Q_Kt.shape()); 
-        let softmaxed = softmax_forward(&(&Q_Kt * &scaling_factor));
+        let scaling_factor = 1./((dk as f32).sqrt());//Tensor::tensor(1./((dk as f32).sqrt()), Q_Kt.shape()); 
+        let softmaxed = softmax_forward(&(&Q_Kt * scaling_factor));
         let result = matmul_forward(&softmaxed, &V);
         let mut output = Vec::new();
         output.push(result);
@@ -589,5 +615,30 @@ impl AttentionHead {
     pub fn parameters(&self) -> Vec<Tensor> {
         // eeh for now
         vec![self.W_q.clone(), self.W_k.clone(), self.W_v.clone()]
+    }
+}
+pub struct FeedForward {
+    pub weights: Vec<(Tensor, Tensor)>,
+    pub biases: Vec<(f32,f32)>,
+}
+impl FeedForward {
+    pub fn new(nl: usize, shape: Vec<usize>) -> FeedForward {
+        let mut weights = Vec::new();
+        let mut biases = Vec::new();
+        for _ in 0..nl {
+            weights.push((Tensor::rand(shape.clone()),Tensor::rand(shape.clone())));
+            biases.push((random::<f32>(),random::<f32>()));
+        }
+        FeedForward { weights, biases }
+    }
+    pub fn forward(&self, x: &Tensor) -> Vec<Tensor> {
+        let f1 = &(&self.weights[0].0 * x) + self.biases[0].0;
+        let ffn_1 = relu_forward(&f1);
+        let f2 = &ffn_1 * &self.weights[0].1;
+        let ffn_2 = &f2 + self.biases[0].1;
+
+        let mut output = Vec::new();
+        output.push(ffn_2);
+        output
     }
 }
