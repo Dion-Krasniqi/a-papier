@@ -651,8 +651,9 @@ impl MaskedAttentionHead {
         let Q_Kt = matmul_forward(&Q, &transpose(&K)); // (block_size * head_dim) @ (head_dim * block_size)
         let mask = Tensor::like_tensor(&Q_Kt);
         let scaling_factor = 1./((dk as f32).sqrt());//Tensor::tensor(1./((dk as f32).sqrt()), Q_Kt.shape()); 
+        let rows = Q_Kt.shape()[0];
         let cols = Q_Kt.shape()[1];
-        for i in 0..Q_Kt.0.borrow().shape[0] {
+        for i in 0..rows {
             for j in i..cols {
                 Q_Kt.0.borrow_mut().data[i*cols+j] += f32::NEG_INFINITY;
             }
@@ -708,4 +709,30 @@ impl FeedForward {
         }
         params
     }
+}
+pub struct LinearLayer {
+    pub weights: Tensor,
+    pub biases: Tensor,
+}
+impl LinearLayer {
+    pub fn new(shape: Vec<usize>) -> LinearLayer {
+        let weights = Tensor::rand(shape.clone());
+        let biases = Tensor::rand(shape.clone());
+        LinearLayer { weights, biases }
+    }
+    pub fn forward(&self, x: &Tensor) -> Tensor {
+        let data = Tensor::zero(x.shape());
+        let length = data.shape().iter().product();
+        for i in 0..length {
+            data.0.borrow_mut().data[i] = x.0.borrow().data[i] * self.weights.0.borrow().data[i] + self.biases.0.borrow().data[i];
+        }
+        data
+    }
+}
+
+pub enum Layers {
+    AttentionHead,
+    MaskedAttentionHead,
+    FeedForward,
+    LinearLayer,
 }

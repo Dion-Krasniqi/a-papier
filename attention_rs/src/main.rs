@@ -23,24 +23,34 @@ fn main(){
     let emb_w = Tensor::rand(vec![vocab_size, emb_dim]);
     let block_size: usize = 8; //dummy for now
     let x = &tokens[..block_size];
+    let head_dim = emb_dim;
     let emb_x = embedding_forward(x, &emb_w); // x.len() * emb_w.cols = block_size * emb_dim
     let pe = positional_encoding(block_size, emb_dim);
     let pos_emb_x = add_forward(&emb_x, &pe);
 
-    let head_dim = emb_dim;
-
-    let attention_layer = AttentionHead::new(vec![emb_dim,head_dim], 1);
-    let attention_head = attention_layer.forward(&pos_emb_x);
+    let masked_attention_layer = MaskedAttentionHead::new(vec![emb_dim,head_dim], 1);
+    let masked_attention_head = masked_attention_layer.forward(&pos_emb_x);
     // just one 
-    let att_emb_x = add_forward(&pos_emb_x, &attention_head[0]);
+    let m_att_emb_x = add_forward(&pos_emb_x, &masked_attention_head[0]);
 
     let betta = Tensor::zero(vec![block_size,emb_dim]);
-    let norm_att_x = layernorm_forward(&att_emb_x, &betta, 0.0);
+    // att_emb_x * 1.0 + 0.0
+    let norm_m_att_x = layernorm_forward(&m_att_emb_x, &betta, 1.0);
+
+    let attention_layer = AttentionHead::new(vec![emb_dim, head_dim], 1);
+    let attention_head = attention_layer.forward(&norm_m_att_x);
+    let att_emb_x = add_forward(&norm_m_att_x, &attention_head[0]);
+    let norm_att_x = layernorm_forward(&att_emb_x, &betta, 1.0); // same as above
 
     // less stupid setup for now
-    let ffn_layer = FeedForward::new(1, att_emb_x.shape());
-    let ffn_out = ffn_layer.forward(&att_emb_x);
-    let f_norm_x = layernorm_forward(&ffn_out[0], &betta, 0.0);
+    let ffn_layer = FeedForward::new(1, norm_att_x.shape());
+    let ffn_out = ffn_layer.forward(&norm_att_x);
+    let ffn_x = add_forward(&norm_att_x, &ffn_out[0]);
+    let norm_ffn_x = layernorm_forward(&ffn_x, &betta, 0.0);
+    let linear_layer = LinearLayer::new(norm_ffn_x.shape());
+    let linear_ffn_x = linear_layer.forward(&norm_ffn_x); 
+    let softmax_linear_x = softmax_forward(&linear_ffn_x);
+    
 
 
 }
