@@ -42,4 +42,5 @@ fn main(){
     let ffn_out = ffn_layer.forward(&att_emb_x);
     let f_norm_x = layernorm_forward(&ffn_out[0], &betta, 0.0);
 
+
 }

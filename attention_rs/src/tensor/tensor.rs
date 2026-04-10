@@ -42,6 +42,19 @@ impl Tensor {
     pub fn one(shape: Vec<usize>) -> Tensor {
         Tensor::tensor(1.0, shape)
     }
+    pub fn like_tensor(tensor: &Tensor) -> Tensor {
+        let shape = tensor.shape();
+        let size: usize = shape.iter().product();
+        let data: Vec<f32> = (0..size).map(|_| random::<f32>()).collect();
+        let output = TensorData {
+            data,
+            grad: vec![0.0f32;size],
+            shape: shape,
+            children: Vec::new(),
+        };
+        Tensor(Rc::new(RefCell::new(output)))
+
+    }
     pub fn print(&self) {
         let data = self.0.borrow();
         println!("shape: {:?}", data.shape);
@@ -606,6 +619,44 @@ impl AttentionHead {
         let dk: usize= K.shape().iter().product();   
         let Q_Kt = matmul_forward(&Q, &transpose(&K)); // (block_size * head_dim) @ (head_dim * block_size)
         let scaling_factor = 1./((dk as f32).sqrt());//Tensor::tensor(1./((dk as f32).sqrt()), Q_Kt.shape()); 
+        let softmaxed = softmax_forward(&(&Q_Kt * scaling_factor));
+        let result = matmul_forward(&softmaxed, &V);
+        let mut output = Vec::new();
+        output.push(result);
+        output
+    }
+    pub fn parameters(&self) -> Vec<Tensor> {
+        // eeh for now
+        vec![self.W_q.clone(), self.W_k.clone(), self.W_v.clone()]
+    }
+}
+pub struct MaskedAttentionHead {
+    pub W_q: Tensor,
+    pub W_k: Tensor,
+    pub W_v: Tensor,
+}
+impl MaskedAttentionHead {
+    pub fn new(dim_shape: Vec<usize>, nout: usize) -> MaskedAttentionHead {
+        // doesnt use nout for now
+        let W_q = Tensor::rand(dim_shape.clone());
+        let W_k = Tensor::rand(dim_shape.clone());
+        let W_v = Tensor::rand(dim_shape.clone());
+        MaskedAttentionHead { W_q, W_k, W_v }
+    }
+    pub fn forward(&self, x: &Tensor) -> Vec<Tensor> {
+        let Q = matmul_forward(&x, &self.W_q); // Q = x @ W_q = (block_size x emb_dim) @ (emb_dim x head_dim) = Q(block_size * head_dim), dim_shape = emb_dim * head_dim
+        let K = matmul_forward(&x, &self.W_k);
+        let V = matmul_forward(&x, &self.W_v);
+        let dk: usize= K.shape().iter().product();   
+        let Q_Kt = matmul_forward(&Q, &transpose(&K)); // (block_size * head_dim) @ (head_dim * block_size)
+        let mask = Tensor::like_tensor(&Q_Kt);
+        let scaling_factor = 1./((dk as f32).sqrt());//Tensor::tensor(1./((dk as f32).sqrt()), Q_Kt.shape()); 
+        let cols = Q_Kt.shape()[1];
+        for i in 0..Q_Kt.0.borrow().shape[0] {
+            for j in i..cols {
+                Q_Kt.0.borrow_mut().data[i*cols+j] += f32::NEG_INFINITY;
+            }
+        }
         let softmaxed = softmax_forward(&(&Q_Kt * scaling_factor));
         let result = matmul_forward(&softmaxed, &V);
         let mut output = Vec::new();
