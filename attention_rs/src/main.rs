@@ -6,11 +6,12 @@ use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
 mod tensor;
-mod scalar;
-use crate::scalar::neuron::definitions::*;
-use crate::scalar::neuron::definitions::NONL as NONL;
-use crate::scalar::value::definitions::*;
+// mod scalar;
+// use crate::scalar::neuron::definitions::*;
+// use crate::scalar::neuron::definitions::NONL as NONL;
+// use crate::scalar::value::definitions::*;
 use crate::tensor::tensor::*;
+use crate::Layer::MaskedAttention;
 
 fn main(){
     // since just character level for now
@@ -43,13 +44,15 @@ fn main(){
     let norm_att_x = layernorm_forward(&att_emb_x, &betta, 1.0); // same as above
 
     // less stupid setup for now
-    let ffn_layer = FeedForward::new(1, norm_att_x.shape());
+    let ffn_layer = FeedForward::new( norm_att_x.shape());
     let ffn_out = ffn_layer.forward(&norm_att_x);
     let ffn_x = add_forward(&norm_att_x, &ffn_out[0]);
     let norm_ffn_x = layernorm_forward(&ffn_x, &betta, 0.0);
     let linear_layer = LinearLayer::new(norm_ffn_x.shape());
     let linear_ffn_x = linear_layer.forward(&norm_ffn_x); 
-    let softmax_linear_x = softmax_forward(&linear_ffn_x);
+    let softmax_linear_x = softmax_forward(&linear_ffn_x[0]);
+
+    let layer_stack = Stack::new(vec![MaskedAttention(masked_attention_layer)]);
     
 
 
