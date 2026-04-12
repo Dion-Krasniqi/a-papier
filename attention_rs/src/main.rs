@@ -11,7 +11,7 @@ mod tensor;
 // use crate::scalar::neuron::definitions::NONL as NONL;
 // use crate::scalar::value::definitions::*;
 use crate::tensor::tensor::*;
-use crate::Layer::MaskedAttention;
+use crate::Layer::*;
 
 fn main(){
     // since just character level for now
@@ -52,7 +52,19 @@ fn main(){
     // let linear_ffn_x = linear_layer.forward(&norm_ffn_x); 
     // let softmax_linear_x = softmax_forward(&linear_ffn_x[0]);
 
-    let layer_stack = Stack::new(vec![MaskedAttention(MaskedAttentionHead::new(vec![emb_dim,head_dim]))]);
+    let layer_stack = Stack::new(vec![
+        MaskedAttention(MaskedAttentionHead::new(vec![emb_dim,head_dim])),
+        // add
+        Norm,
+        Attention(AttentionHead::new(vec![emb_dim,head_dim])),
+        // add
+        Norm,
+        FeedForwardLayer(FeedForward::new(vec![emb_dim,head_dim])),
+        // add
+        Norm,
+        Linear(LinearLayer::new(vec![block_size, emb_dim])),
+        Softmax,
+        ]);
     
 
 
