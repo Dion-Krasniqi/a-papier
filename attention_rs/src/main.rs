@@ -54,11 +54,11 @@ fn main(){
 
     let layer_stack = Stack::new(vec![
         ResidualMaskedAttention(MaskedAttentionHead::new(vec![emb_dim,head_dim])),
-        Norm,
+        Norm(LayerNorm::new(vec![block_size,head_dim])),
         ResidualAttention(AttentionHead::new(vec![emb_dim,head_dim])),
-        Norm,
-        ResidualFFN(FeedForward::new(vec![emb_dim,head_dim])),
-        Norm,
+        Norm(LayerNorm::new(vec![block_size,head_dim])),
+        ResidualFFN(FeedForward::new(vec![block_size,head_dim])),
+        Norm(LayerNorm::new(vec![block_size,head_dim])),
         Linear(LinearLayer::new(vec![block_size,emb_dim])),
         Softmax,
         ]
