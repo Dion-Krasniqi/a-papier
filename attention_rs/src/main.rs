@@ -53,18 +53,17 @@ fn main(){
     // let softmax_linear_x = softmax_forward(&linear_ffn_x[0]);
 
     let layer_stack = Stack::new(vec![
-        MaskedAttention(MaskedAttentionHead::new(vec![emb_dim,head_dim])),
-        // add
+        ResidualMaskedAttention(MaskedAttentionHead::new(vec![emb_dim,head_dim])),
         Norm,
-        Attention(AttentionHead::new(vec![emb_dim,head_dim])),
-        // add
+        ResidualAttention(AttentionHead::new(vec![emb_dim,head_dim])),
         Norm,
-        FeedForwardLayer(FeedForward::new(vec![emb_dim,head_dim])),
-        // add
+        ResidualFFN(FeedForward::new(vec![emb_dim,head_dim])),
         Norm,
-        Linear(LinearLayer::new(vec![block_size, emb_dim])),
+        Linear(LinearLayer::new(vec![block_size,emb_dim])),
         Softmax,
-        ]);
+        ]
+    );
+    layer_stack.forward(vec![pos_emb_x.clone()]);
     
 
 

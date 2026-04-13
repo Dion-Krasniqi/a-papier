@@ -804,8 +804,10 @@ pub enum Layer {
     MaskedAttention(MaskedAttentionHead),
     FeedForwardLayer(FeedForward),
     Linear(LinearLayer),
+    ResidualFFN(FeedForward),
+    ResidualAttention(AttentionHead),
+    ResidualMaskedAttention(MaskedAttentionHead),
     Softmax,
-    Add,
     Norm,
 }
 impl Layer {
@@ -816,8 +818,20 @@ impl Layer {
             Layer::FeedForwardLayer(a) => a.forward(x),
             Layer::Linear(a) => a.forward(x),
             Layer::Softmax => softmax_forward(x),
-            Layer::Add => add_forward_vec(x.clone(), x), //just for now
             Layer::Norm => layernorm_forward_vec(x),
+            // idk
+            Layer::ResidualFFN(a) => {
+                let out = a.forward(x.clone());
+                add_forward_vec(x, out)
+            },
+            Layer::ResidualAttention(a) => {
+                let out = a.forward(x.clone());
+                add_forward_vec(x, out)
+            },
+            Layer::ResidualMaskedAttention(a) => {
+                let out = a.forward(x.clone());
+                add_forward_vec(x, out)
+            },
         }
     }
 }
