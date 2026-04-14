@@ -31,11 +31,11 @@ fn main(){
 
     let mut layer_stack = Stack::new(vec![
         ResidualMaskedAttention(MaskedAttentionHead::new(vec![emb_dim,head_dim])),
-        Norm(LayerNorm::new(vec![block_size,head_dim])),
+        Norm(LayerNorm::new(vec![block_size,head_dim],x.len())),
         ResidualAttention(AttentionHead::new(vec![emb_dim,head_dim])),
-        Norm(LayerNorm::new(vec![block_size,head_dim])),
+        Norm(LayerNorm::new(vec![block_size,head_dim],x.len())),
         ResidualFFN(FeedForward::new(vec![block_size,head_dim],x.len())),
-        Norm(LayerNorm::new(vec![block_size,head_dim])),
+        Norm(LayerNorm::new(vec![block_size,head_dim],x.len())),
         Linear(LinearLayer::new(vec![block_size,emb_dim])),
         Softmax,
         ]

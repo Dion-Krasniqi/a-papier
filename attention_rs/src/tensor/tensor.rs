@@ -529,6 +529,7 @@ pub fn transpose(a: &Tensor) -> Tensor {
     for i in 0..rows {
         for j in 0..cols {
             data[i*cols + j] = a_vec[j*rows+i];
+            grad[i*cols + j] = a_grad[j*rows+i];
         }
     }
     let output = TensorData {
@@ -538,6 +539,16 @@ pub fn transpose(a: &Tensor) -> Tensor {
         children: vec![a.clone()],
     };
     Tensor(Rc::new(RefCell::new(output)))
+}
+pub fn transpose_grad(trans: &Tensor, og: &Tensor) {
+    let shape = trans.shape();
+    let rows = shape[0].clone();
+    let cols = shape[1].clone();
+    for i in 0..rows {
+        for j in 0..cols {
+            og.0.borrow_mut().grad[i*cols+j] = trans.0.borrow().grad[j*rows+i];
+        }
+    }
 }
 
 pub struct Tokenizer {
@@ -591,13 +602,6 @@ impl AttentionHead {
             let dk: usize= K.shape().iter().product();   
             let Q_Kt = matmul_forward(&Q, &transpose(&K)); // (block_size * head_dim) @ (head_dim * block_size)
             let scaling_factor = 1./((dk as f32).sqrt()); //Tensor::tensor(1./((dk as f32).sqrt()), Q_Kt.shape()); 
-            let rows = Q_Kt.shape()[0];
-            let cols = Q_Kt.shape()[1];
-            for i in 0..rows {
-                for j in i..cols {
-                    Q_Kt.0.borrow_mut().data[i*cols+j] += f32::NEG_INFINITY;
-                }
-            }
             temp = softmax_forward(vec![(&Q_Kt * scaling_factor)])[0].clone();
             *out = matmul_forward(&temp, &V);
         }
@@ -606,6 +610,26 @@ impl AttentionHead {
     pub fn parameters(&self) -> Vec<Tensor> {
         // eeh for now
         vec![self.W_q.clone(), self.W_k.clone(), self.W_v.clone()]
+    }
+    pub fn backward(&self, out: Vec<Tensor>, a: Vec<Tensor>) {
+        for i in 0..out.len() {
+            // cache/own these
+            let Q = matmul_forward(&a[i], &self.W_q);
+            let K = matmul_forward(&a[i], &self.W_k);
+            let V = matmul_forward(&a[i], &self.W_v);
+            let Kt = transpose(&K);
+            let Q_Kt = matmul_forward(&Q, &Kt);
+            let dk: usize= K.shape().iter().product(); 
+            let scaling_factor = 1./((dk as f32).sqrt());
+            let softmax_res = softmax_forward(vec![(&Q_Kt * scaling_factor)])[0].clone();
+            matmul_backward(&out[i], &softmax_res, &V);
+            matmul_backward(&Q_Kt, &Q, &Kt);
+            transpose_grad(&Kt, &K);
+            matmul_backward(&V, &a[i], &self.W_v);
+            matmul_backward(&K, &a[i], &self.W_k);
+            transpose_grad(&K, &Kt);
+            matmul_backward(&Q, &a[i], &self.W_q);
+        }
     }
 }
 pub struct MaskedAttentionHead {
@@ -634,6 +658,7 @@ impl MaskedAttentionHead {
             let scaling_factor = 1./((dk as f32).sqrt()); //Tensor::tensor(1./((dk as f32).sqrt()), Q_Kt.shape()); 
             let rows = Q_Kt.shape()[0];
             let cols = Q_Kt.shape()[1];
+            //mask
             for i in 0..rows {
                 for j in i..cols {
                     Q_Kt.0.borrow_mut().data[i*cols+j] += f32::NEG_INFINITY;
@@ -647,6 +672,42 @@ impl MaskedAttentionHead {
     pub fn parameters(&self) -> Vec<Tensor> {
         // eeh for now
         vec![self.W_q.clone(), self.W_k.clone(), self.W_v.clone()]
+    }
+    pub fn backward(&self, out: Vec<Tensor>, a: Vec<Tensor>) {
+        for i in 0..out.len() {
+            // cache/own these
+            let Q = matmul_forward(&a[i], &self.W_q);
+            let K = matmul_forward(&a[i], &self.W_k);
+            let V = matmul_forward(&a[i], &self.W_v);
+            let Kt = transpose(&K);
+            let Q_Kt = matmul_forward(&Q, &Kt);
+            let dk: usize= K.shape().iter().product(); 
+            let scaling_factor = 1./((dk as f32).sqrt());
+            let rows = Q_Kt.shape()[0];
+            let cols = Q_Kt.shape()[1];
+            //mask
+            for i in 0..rows {
+                for j in i..cols {
+                    Q_Kt.0.borrow_mut().data[i*cols+j] += f32::NEG_INFINITY;
+                }
+            }
+            let softmax_res = softmax_forward(vec![(&Q_Kt * scaling_factor)])[0].clone();
+            matmul_backward(&out[i], &softmax_res, &V);
+            for i in 0..rows {
+                for j in i..cols {
+                    // DL/DQ_kt = dl/dsoft_max * dsoft_max/dQ_kt
+                    // d(Q_kt * scaling_factor) / dQ_kt = scaling_factor
+                    // DL/DQ_kt = dsoft_max * scaling_factor
+                    Q_Kt.0.borrow_mut().grad[i*cols+j] += softmax_res.0.borrow().grad[i*cols+j] * scaling_factor;
+                }
+            }
+            matmul_backward(&Q_Kt, &Q, &Kt);
+            transpose_grad(&Kt, &K);
+            matmul_backward(&V, &a[i], &self.W_v);
+            matmul_backward(&K, &a[i], &self.W_k);
+            transpose_grad(&K, &Kt);
+            matmul_backward(&Q, &a[i], &self.W_q);
+        }
     }
 }
 pub struct FeedForward {
@@ -740,17 +801,24 @@ impl LinearLayer {
 pub struct LayerNorm {
     pub betta: Tensor,
     pub gamma: f32,
+    pub out: Vec<Tensor>,
 }
 impl LayerNorm {
-    pub fn new(shape: Vec<usize>) -> LayerNorm {
+    pub fn new(shape: Vec<usize>, in_len: usize) -> LayerNorm {
         LayerNorm {
             betta: Tensor::rand(shape.clone()),
             gamma: random::<f32>(),
+            out: (0..in_len).map(|_|Tensor::zero(shape.clone())).collect(),
         }
     }
     pub fn forward(&self, x: Vec<Tensor>) -> Vec<Tensor> {
         let output: Vec<Tensor> = x.iter().map(|o|layernorm_forward(&o, &self.betta, self.gamma)).collect();
         output
+    }
+    pub fn backward(&self, x:Vec<Tensor>) {
+        for i in 0..x.len() {
+            layernorm_backward(&self.out[i], &(x[i]), &self.betta, self.gamma);
+        }
     }
 }
 pub enum Layer {
