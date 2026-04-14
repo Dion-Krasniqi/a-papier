@@ -30,18 +30,20 @@ fn main(){
     let pos_emb_x = add_forward(&emb_x, &pe);
 
     let mut layer_stack = Stack::new(vec![
-        ResidualMaskedAttention(MaskedAttentionHead::new(vec![emb_dim,head_dim])),
+        ResidualMaskedAttention(MaskedAttentionHead::new(vec![emb_dim,head_dim],x.len())),
         Norm(LayerNorm::new(vec![block_size,head_dim],x.len())),
-        ResidualAttention(AttentionHead::new(vec![emb_dim,head_dim])),
+        ResidualAttention(AttentionHead::new(vec![emb_dim,head_dim],x.len())),
         Norm(LayerNorm::new(vec![block_size,head_dim],x.len())),
         ResidualFFN(FeedForward::new(vec![block_size,head_dim],x.len())),
         Norm(LayerNorm::new(vec![block_size,head_dim],x.len())),
-        Linear(LinearLayer::new(vec![block_size,emb_dim])),
+        Linear(LinearLayer::new(vec![block_size,emb_dim],x.len())),
         Softmax,
         ]
     );
-    layer_stack.forward(vec![pos_emb_x.clone()]);
-    
+    let res = layer_stack.forward(vec![pos_emb_x.clone()]);
+    emb_x.print();
+    layer_stack.backward(res);
+    emb_x.print();
 
 
 }

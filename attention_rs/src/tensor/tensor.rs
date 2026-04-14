@@ -583,19 +583,19 @@ pub struct AttentionHead {
     pub W_q: Tensor,
     pub W_k: Tensor,
     pub W_v: Tensor,
+    pub out: Vec<Tensor>,
 }
 impl AttentionHead {
-    pub fn new(dim_shape: Vec<usize>) -> AttentionHead {
-        // doesnt use nout for now
+    pub fn new(dim_shape: Vec<usize>, in_len: usize) -> AttentionHead {
         let W_q = Tensor::rand(dim_shape.clone());
         let W_k = Tensor::rand(dim_shape.clone());
         let W_v = Tensor::rand(dim_shape.clone());
-        AttentionHead { W_q, W_k, W_v }
+        let out = (0..in_len).map(|_| Tensor::rand(dim_shape.clone())).collect();
+        AttentionHead { W_q, W_k, W_v, out }
     }
-    pub fn forward(&self, x: Vec<Tensor>) -> Vec<Tensor> {
+    pub fn forward(&mut self, x: Vec<Tensor>) -> Vec<Tensor> {
         let mut temp = Tensor::zero(x[0].shape());
-        let mut result = x.clone();
-        for (mut out, tensor) in result.iter_mut().zip(x) {
+        for (mut out, tensor) in self.out.iter_mut().zip(x) {
             let Q = matmul_forward(&tensor, &self.W_q); // Q = x @ W_q = (block_size x emb_dim) @ (emb_dim x head_dim) = Q(block_size * head_dim), dim_shape = emb_dim * head_dim
             let K = matmul_forward(&tensor, &self.W_k);
             let V = matmul_forward(&tensor, &self.W_v);
@@ -605,14 +605,14 @@ impl AttentionHead {
             temp = softmax_forward(vec![(&Q_Kt * scaling_factor)])[0].clone();
             *out = matmul_forward(&temp, &V);
         }
-        result
+        self.out.clone()
     }
     pub fn parameters(&self) -> Vec<Tensor> {
         // eeh for now
         vec![self.W_q.clone(), self.W_k.clone(), self.W_v.clone()]
     }
-    pub fn backward(&self, out: Vec<Tensor>, a: Vec<Tensor>) {
-        for i in 0..out.len() {
+    pub fn backward(&self, a: Vec<Tensor>) {
+        for i in 0..a.len() {
             // cache/own these
             let Q = matmul_forward(&a[i], &self.W_q);
             let K = matmul_forward(&a[i], &self.W_k);
@@ -622,7 +622,7 @@ impl AttentionHead {
             let dk: usize= K.shape().iter().product(); 
             let scaling_factor = 1./((dk as f32).sqrt());
             let softmax_res = softmax_forward(vec![(&Q_Kt * scaling_factor)])[0].clone();
-            matmul_backward(&out[i], &softmax_res, &V);
+            matmul_backward(&self.out[i], &softmax_res, &V);
             matmul_backward(&Q_Kt, &Q, &Kt);
             transpose_grad(&Kt, &K);
             matmul_backward(&V, &a[i], &self.W_v);
@@ -636,19 +636,19 @@ pub struct MaskedAttentionHead {
     pub W_q: Tensor,
     pub W_k: Tensor,
     pub W_v: Tensor,
+    pub out: Vec<Tensor>,
 }
 impl MaskedAttentionHead {
-    pub fn new(dim_shape: Vec<usize>) -> MaskedAttentionHead {
-        // doesnt use nout for now
+    pub fn new(dim_shape: Vec<usize>, in_len: usize) -> MaskedAttentionHead {
         let W_q = Tensor::rand(dim_shape.clone());
         let W_k = Tensor::rand(dim_shape.clone());
         let W_v = Tensor::rand(dim_shape.clone());
-        MaskedAttentionHead { W_q, W_k, W_v }
+        let out: Vec<Tensor> = (0..in_len).map(|_|Tensor::rand(dim_shape.clone())).collect();
+        MaskedAttentionHead { W_q, W_k, W_v, out }
     }
-    pub fn forward(&self, x: Vec<Tensor>) -> Vec<Tensor> {
+    pub fn forward(&mut self, x: Vec<Tensor>) -> Vec<Tensor> {
         let mut temp = Tensor::zero(x[0].shape());
-        let mut result = x.clone();
-        for (mut out, tensor) in result.iter_mut().zip(x) {
+        for (mut out, tensor) in self.out.iter_mut().zip(x) {
             let Q = matmul_forward(&tensor, &self.W_q); // Q = x @ W_q = (block_size x emb_dim) @ (emb_dim x head_dim) = Q(block_size * head_dim), dim_shape = emb_dim * head_dim
             let K = matmul_forward(&tensor, &self.W_k);
             let V = matmul_forward(&tensor, &self.W_v);
@@ -667,14 +667,14 @@ impl MaskedAttentionHead {
             temp = softmax_forward(vec![(&Q_Kt * scaling_factor)])[0].clone();
             *out = matmul_forward(&temp, &V);
         }
-        result
+        self.out.clone()
     }
     pub fn parameters(&self) -> Vec<Tensor> {
         // eeh for now
         vec![self.W_q.clone(), self.W_k.clone(), self.W_v.clone()]
     }
-    pub fn backward(&self, out: Vec<Tensor>, a: Vec<Tensor>) {
-        for i in 0..out.len() {
+    pub fn backward(&self, a: Vec<Tensor>) {
+        for i in 0..a.len() {
             // cache/own these
             let Q = matmul_forward(&a[i], &self.W_q);
             let K = matmul_forward(&a[i], &self.W_k);
@@ -692,7 +692,7 @@ impl MaskedAttentionHead {
                 }
             }
             let softmax_res = softmax_forward(vec![(&Q_Kt * scaling_factor)])[0].clone();
-            matmul_backward(&out[i], &softmax_res, &V);
+            matmul_backward(&self.out[i], &softmax_res, &V);
             for i in 0..rows {
                 for j in i..cols {
                     // DL/DQ_kt = dl/dsoft_max * dsoft_max/dQ_kt
@@ -715,6 +715,7 @@ pub struct FeedForward {
     pub biases: (Tensor, Tensor),
     pub f1: Vec<Tensor>,
     pub f2: Vec<Tensor>,
+    pub out: Vec<Tensor>,
 }
 impl FeedForward {
     pub fn new(shape: Vec<usize>, in_len: usize) -> FeedForward {
@@ -723,16 +724,16 @@ impl FeedForward {
         let biases = (Tensor::rand(shape.clone()),Tensor::rand(shape.clone()));
         let f1: Vec<Tensor> = (0..in_len).map(|_|Tensor::rand(shape.clone())).collect();
         let f2: Vec<Tensor> = (0..in_len).map(|_|Tensor::rand(shape.clone())).collect();
-        FeedForward { weights, biases, f1, f2 }
+        let out: Vec<Tensor> = (0..in_len).map(|_|Tensor::rand(shape.clone())).collect();
+        FeedForward { weights, biases, f1, f2, out }
     }
     pub fn forward(&mut self, x: Vec<Tensor>) -> Vec<Tensor> {
-        let mut result = x.clone();
-        for i in 0..result.len() {
-            self.f1[i] = relu_forward(&add_forward(&matmul_forward(&result[i],&self.weights.0), &self.biases.0)); 
+        for i in 0..x.len() {
+            self.f1[i] = relu_forward(&add_forward(&matmul_forward(&self.out[i],&self.weights.0), &self.biases.0)); 
             self.f2[i] = matmul_forward(&self.f1[i], &self.weights.1); 
-            result[i] = add_forward(&self.f2[i], &self.biases.1);
+            self.out[i] = add_forward(&self.f2[i], &self.biases.1);
         }
-        result
+        self.out.clone()
     }
     pub fn parameters(&self) -> Vec<Tensor> {
         let mut params = Vec::new();
@@ -742,7 +743,7 @@ impl FeedForward {
         params.push(self.biases.1.clone());
         params
     }
-    pub fn backward(&self, x: Vec<Tensor>, out: Vec<Tensor>) {
+    pub fn backward(&self, x: Vec<Tensor>) {
         // f1 = weight.0 * x + bias.0
         // f1_relu = relu(f1)
         // f2 = f1_relu * weight.1
@@ -756,8 +757,8 @@ impl FeedForward {
         // dout/dw0 = (if term>0. 1. else 0.) * x * out_grad
         // dL/dx = out_grad * dout/dx , dout/dx = d((relu(weight.0 * x + bias.0) * weight.1) + bias.1)/dx
         // dout/dx = (if term>0. 1. else 0.) * w0 * out_grad
-        for i in 0..out.len() {
-            add_backward(&out[i], &self.f2[i], &self.biases.1);
+        for i in 0..x.len() {
+            add_backward(&self.out[i], &self.f2[i], &self.biases.1);
             matmul_backward(&self.f2[i], &self.f1[i], &self.weights.1);
             let mul_res = matmul_forward(&x[i],&self.weights.0);
             let add_res = add_forward(&mul_res, &self.biases.0);
@@ -770,27 +771,28 @@ impl FeedForward {
 pub struct LinearLayer {
     pub weights: Tensor,
     pub biases: Tensor,
+    pub out: Vec<Tensor>,
 }
 impl LinearLayer {
-    pub fn new(shape: Vec<usize>) -> LinearLayer {
+    pub fn new(shape: Vec<usize>, in_len: usize) -> LinearLayer {
         let weights = Tensor::rand(shape.clone());
         let biases = Tensor::rand(shape.clone());
-        LinearLayer { weights, biases }
+        let out = (0..in_len).map(|_|Tensor::zero(shape.clone())).collect();
+        LinearLayer { weights, biases, out }
     }
-    pub fn forward(&self, x: Vec<Tensor>) -> Vec<Tensor> {
+    pub fn forward(&mut self, x: Vec<Tensor>) -> Vec<Tensor> {
         let shape = x[0].shape();
-        let mut data = vec![Tensor::zero(shape.clone());x.len()];
         let length = shape.iter().product();
-        for (out, tensor) in data.iter_mut().zip(x) {
+        for (out, tensor) in self.out.iter_mut().zip(x) {
             for i in 0..length {
                 out.0.borrow_mut().data[i] = tensor.0.borrow().data[i] * self.weights.0.borrow().data[i] + self.biases.0.borrow().data[i];
             }
         }
-        data
+        self.out.clone()
     }
-    pub fn backward(&self, x: Vec<Tensor>, out: Vec<Tensor>) {
+    pub fn backward(&mut self, x: Vec<Tensor>) {
         let length = x[0].shape().iter().product();
-        let out_grad: Vec<Vec<f32>> = out.iter().map(|o|o.0.borrow().grad.clone()).collect();
+        let out_grad: Vec<Vec<f32>> = self.out.iter().map(|o|o.0.borrow().grad.clone()).collect();
         for (out_g, tensor) in out_grad.iter().zip(x) {
             for i in 0..length {
                 tensor.0.borrow_mut().grad[i] += (out_g[i]) * (self.weights.0.borrow().data[i]);
@@ -856,29 +858,30 @@ impl Layer {
             },
         }
     }
-    // pub fn backward(&self, x: Vec<Tensor>, out: Vec<Tensor>) {
-    //     match self {
-    //         Layer::Attention(a) => a.forward(x),
-    //         Layer::MaskedAttention(a) => a.forward(x),
-    //         Layer::FeedForwardLayer(a) => a.forward(x),
-    //         Layer::Linear(a) => a.forward(x),
-    //         Layer::Softmax => softmax_forward(x),
-    //         Layer::Norm(a) => a.forward(x),
-    //         // idk
-    //         Layer::ResidualFFN(a) => {
-    //             let out = a.forward(x.clone());
-    //             add_forward_vec(x, out)
-    //         },
-    //         Layer::ResidualAttention(a) => {
-    //             let out = a.forward(x.clone());
-    //             add_forward_vec(x, out)
-    //         },
-    //         Layer::ResidualMaskedAttention(a) => {
-    //             let out = a.forward(x.clone());
-    //             add_forward_vec(x, out)
-    //         },
-    //     }
-    // }
+    pub fn backward(&mut self, x: Vec<Tensor>) {
+        match self {
+            Layer::Attention(a) => a.backward(x),
+            Layer::MaskedAttention(a) => a.backward(x),
+            Layer::FeedForwardLayer(a) => a.backward(x),
+            Layer::Linear(a) => a.backward(x),
+            Layer::Softmax => softmax_backward(x.clone(), x.clone()),
+            Layer::Norm(a) => a.backward(x),
+            // idk
+            Layer::ResidualFFN(a) => {
+                let new_o = add_forward_vec(x.clone(), a.out.clone());
+                add_backward(&new_o[0], &x[0], &a.out[0]);
+                a.backward(x);
+            },
+            Layer::ResidualAttention(a) => {
+                let out = a.forward(x.clone());
+                add_forward_vec(x, out);
+            },
+            Layer::ResidualMaskedAttention(a) => {
+                let out = a.forward(x.clone());
+                add_forward_vec(x, out);
+            },
+        }
+    }
 }
 pub struct Stack {
     pub layers: Vec<Layer>,
@@ -897,5 +900,10 @@ impl Stack {
             output = l.forward(output);
         }
         output
+    }
+    pub fn backward(&mut self, x: Vec<Tensor>){
+        for mut l in self.layers.iter_mut().rev() {
+            l.backward(x.clone());
+        }
     }
 }
