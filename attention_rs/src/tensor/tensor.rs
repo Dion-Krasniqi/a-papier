@@ -652,21 +652,24 @@ impl MaskedAttentionHead {
 pub struct FeedForward {
     pub weights: (Tensor, Tensor),
     pub biases: (Tensor, Tensor),
+    pub f1: Vec<Tensor>,
+    pub f2: Vec<Tensor>,
 }
 impl FeedForward {
-    pub fn new(shape: Vec<usize>) -> FeedForward {
-        let weights = (Tensor::rand(shape.clone()),Tensor::rand(shape.clone()));
+    pub fn new(shape: Vec<usize>, in_len: usize) -> FeedForward {
+        // confused on the parametrization
+        let weights = (Tensor::rand(vec![shape[1].clone(),shape[1].clone()]),Tensor::rand(vec![shape[1].clone(),shape[1].clone()]));
         let biases = (Tensor::rand(shape.clone()),Tensor::rand(shape.clone()));
-        FeedForward { weights, biases }
+        let f1: Vec<Tensor> = (0..in_len).map(|_|Tensor::rand(shape.clone())).collect();
+        let f2: Vec<Tensor> = (0..in_len).map(|_|Tensor::rand(shape.clone())).collect();
+        FeedForward { weights, biases, f1, f2 }
     }
-    pub fn forward(&self, x: Vec<Tensor>) -> Vec<Tensor> {
+    pub fn forward(&mut self, x: Vec<Tensor>) -> Vec<Tensor> {
         let mut result = x.clone();
-        let mut temp = Tensor::zero(x[0].shape());
-        for mut res in &result {
-            temp = add_forward(&(&self.weights.0 * res), &self.biases.0); //f1
-            temp = relu_forward(&temp); //ffn_1
-            temp = &temp * &self.weights.1; //f2
-            res = &add_forward(&temp, &self.biases.1);
+        for i in 0..result.len() {
+            self.f1[i] = relu_forward(&add_forward(&matmul_forward(&result[i],&self.weights.0), &self.biases.0)); 
+            self.f2[i] = matmul_forward(&self.f1[i], &self.weights.1); 
+            result[i] = add_forward(&self.f2[i], &self.biases.1);
         }
         result
     }
@@ -677,6 +680,30 @@ impl FeedForward {
         params.push(self.biases.0.clone());
         params.push(self.biases.1.clone());
         params
+    }
+    pub fn backward(&self, x: Vec<Tensor>, out: Vec<Tensor>) {
+        // f1 = weight.0 * x + bias.0
+        // f1_relu = relu(f1)
+        // f2 = f1_relu * weight.1
+        // out = f2 + bias.1
+        // out = (relu(weight.0 * x + bias.0) * weight.1) + bias.1
+        // dL/dx = dl/dout * dout/dx
+        // dL/db1 = dl/dout * dout/db1
+        // dout/db1 = 1 * out_grad
+        // dout/db0 =  (if (term>0.) 1.0 else 0.) * out_grad
+        // dout/dw1 = relu(w0 * x + bias.0) * out_grad
+        // dout/dw0 = (if term>0. 1. else 0.) * x * out_grad
+        // dL/dx = out_grad * dout/dx , dout/dx = d((relu(weight.0 * x + bias.0) * weight.1) + bias.1)/dx
+        // dout/dx = (if term>0. 1. else 0.) * w0 * out_grad
+        for i in 0..out.len() {
+            add_backward(&out[i], &self.f2[i], &self.biases.1);
+            matmul_backward(&self.f2[i], &self.f1[i], &self.weights.1);
+            let mul_res = matmul_forward(&x[i],&self.weights.0);
+            let add_res = add_forward(&mul_res, &self.biases.0);
+            relu_backward(&self.f1[i], &add_res);
+            add_backward(&add_res, &mul_res, &self.biases.0);
+            matmul_backward(&mul_res, &x[i], &self.weights.0);
+        }
     }
 }
 pub struct LinearLayer {
@@ -738,7 +765,7 @@ pub enum Layer {
     Norm(LayerNorm),
 }
 impl Layer {
-    pub fn forward(&self, x: Vec<Tensor>) -> Vec<Tensor> {
+    pub fn forward(&mut self, x: Vec<Tensor>) -> Vec<Tensor> {
         match self {
             Layer::Attention(a) => a.forward(x),
             Layer::MaskedAttention(a) => a.forward(x),
@@ -795,10 +822,10 @@ impl Stack {
     pub fn add(&mut self, layer: Layer) {
         self.layers.push(layer);
     }
-    pub fn forward(&self, x: Vec<Tensor>) -> Vec<Tensor> {
+    pub fn forward(&mut self, x: Vec<Tensor>) -> Vec<Tensor> {
         // one in 
         let mut output = x.clone();
-        for l in &self.layers {
+        for l in &mut self.layers {
             output = l.forward(output);
         }
         output

@@ -29,12 +29,12 @@ fn main(){
     let pe = positional_encoding(block_size, emb_dim);
     let pos_emb_x = add_forward(&emb_x, &pe);
 
-    let layer_stack = Stack::new(vec![
+    let mut layer_stack = Stack::new(vec![
         ResidualMaskedAttention(MaskedAttentionHead::new(vec![emb_dim,head_dim])),
         Norm(LayerNorm::new(vec![block_size,head_dim])),
         ResidualAttention(AttentionHead::new(vec![emb_dim,head_dim])),
         Norm(LayerNorm::new(vec![block_size,head_dim])),
-        ResidualFFN(FeedForward::new(vec![block_size,head_dim])),
+        ResidualFFN(FeedForward::new(vec![block_size,head_dim],x.len())),
         Norm(LayerNorm::new(vec![block_size,head_dim])),
         Linear(LinearLayer::new(vec![block_size,emb_dim])),
         Softmax,
