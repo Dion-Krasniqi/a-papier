@@ -700,6 +700,15 @@ impl LinearLayer {
         }
         data
     }
+    pub fn backward(&self, x: Vec<Tensor>, out: Vec<Tensor>) {
+        let length = x[0].shape().iter().product();
+        let out_grad: Vec<Vec<f32>> = out.iter().map(|o|o.0.borrow().grad.clone()).collect();
+        for (out_g, tensor) in out_grad.iter().zip(x) {
+            for i in 0..length {
+                tensor.0.borrow_mut().grad[i] += (out_g[i]) * (self.weights.0.borrow().data[i]);
+            }
+        }
+    }
 }
 pub struct LayerNorm {
     pub betta: Tensor,
@@ -752,6 +761,29 @@ impl Layer {
             },
         }
     }
+    // pub fn backward(&self, x: Vec<Tensor>, out: Vec<Tensor>) {
+    //     match self {
+    //         Layer::Attention(a) => a.forward(x),
+    //         Layer::MaskedAttention(a) => a.forward(x),
+    //         Layer::FeedForwardLayer(a) => a.forward(x),
+    //         Layer::Linear(a) => a.forward(x),
+    //         Layer::Softmax => softmax_forward(x),
+    //         Layer::Norm(a) => a.forward(x),
+    //         // idk
+    //         Layer::ResidualFFN(a) => {
+    //             let out = a.forward(x.clone());
+    //             add_forward_vec(x, out)
+    //         },
+    //         Layer::ResidualAttention(a) => {
+    //             let out = a.forward(x.clone());
+    //             add_forward_vec(x, out)
+    //         },
+    //         Layer::ResidualMaskedAttention(a) => {
+    //             let out = a.forward(x.clone());
+    //             add_forward_vec(x, out)
+    //         },
+    //     }
+    // }
 }
 pub struct Stack {
     pub layers: Vec<Layer>,
