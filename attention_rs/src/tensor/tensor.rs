@@ -495,20 +495,24 @@ pub fn embedding_backward(out: &Tensor, weight: &Tensor, tokens: &[usize]) {
         }
     }
 }
-pub fn cross_entropy_forward(a: &Tensor, targets: &[usize]) -> f32 {
-    let cols = a.0.borrow().shape[1];
-    let probs = a.0.borrow().data.clone();
+pub fn cross_entropy_forward(a: &Vec<Tensor>, targets: &[usize]) -> Tensor {
+    let cols = a[0].0.borrow().shape[1];
     let mut loss = 0.0;
-    for (i, &target) in targets.iter().enumerate() {
-        loss -= probs[i*cols+target].ln();
+    for i in 0..a.len(){
+        let probs = a[i].0.borrow().data.clone();
+        for (j, &target) in targets.iter().enumerate() {
+            loss -= probs[j*cols+target].ln();
+        }
     }
-    loss / targets.len() as f32
+    Tensor::tensor(loss / (targets.len() * a.len()) as f32, vec![1,0])
 }
-pub fn cross_entropy_backward(a: &Tensor, targets: &[usize]) {
-    let rows = a.0.borrow().shape[0];
-    let cols = a.0.borrow().shape[1];
-    for (i, &target) in targets.iter().enumerate() {
-        a.0.borrow_mut().grad[i*cols+target] -= 1.0; 
+pub fn cross_entropy_backward(a: &Vec<Tensor>, targets: &[usize]) {
+    let rows = a[0].0.borrow().shape[0];
+    let cols = a[0].0.borrow().shape[1];
+    for i in 0..a.len(){
+        for (j, &target) in targets.iter().enumerate() {
+            a[i].0.borrow_mut().grad[j*cols+target] -= 1.0; 
+        }
     }
 }
 pub fn positional_encoding(seq_len: usize, emb_dim: usize) -> Tensor {

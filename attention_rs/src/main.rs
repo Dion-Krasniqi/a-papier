@@ -47,10 +47,11 @@ fn main(){
     let linear_layer = LinearLayer::new(vec![block_size,emb_dim]);
     let linear_x = linear_layer.forward(&add_norm3);
     let softmax_x = softmax_forward(&linear_x);
-    softmax_x[0].print();
-    softmax_x[0].set_grad(1.0);
+    let loss = cross_entropy_forward(&softmax_x, &[0, 1, 0, 0, 0]); // dummy
+    loss.set_grad(1.0);
+    cross_entropy_backward(&softmax_x, &[0, 1, 0, 0, 0]);
     softmax_backward(&softmax_x, &linear_x); 
-    linear_x[0].print();
+    softmax_x[0].print();
     
     let n = (0.9 * text.len() as f32) as usize;
     let train_data = &tokens[..n];
