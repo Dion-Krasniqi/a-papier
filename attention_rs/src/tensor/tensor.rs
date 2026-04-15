@@ -159,6 +159,15 @@ pub fn add_forward(a: &Tensor, b: &Tensor) -> Tensor {
     };
     Tensor(Rc::new(RefCell::new(output)))
 }
+pub fn add_backward(out: &Tensor, a: &Tensor, b: &Tensor) {
+    let out_grad = &out.0.borrow().grad;
+    for (a_grad, o_grad) in a.0.borrow_mut().grad.iter_mut().zip(out_grad) {
+        *a_grad += o_grad;
+    }
+    for (b_grad, o_grad) in b.0.borrow_mut().grad.iter_mut().zip(out_grad) {
+        *b_grad += o_grad;
+    }
+}
 pub fn add_forward_vec(a: &Vec<Tensor>, b: &Vec<Tensor>) -> Vec<Tensor> {
     let shape = a[0].0.borrow().shape.clone();
     let size: usize = shape.iter().product();
@@ -181,13 +190,15 @@ pub fn add_forward_vec(a: &Vec<Tensor>, b: &Vec<Tensor>) -> Vec<Tensor> {
     }
     output
 }
-pub fn add_backward(out: &Tensor, a: &Tensor, b: &Tensor) {
-    let out_grad = &out.0.borrow().grad;
-    for (a_grad, o_grad) in a.0.borrow_mut().grad.iter_mut().zip(out_grad) {
-        *a_grad += o_grad;
-    }
-    for (b_grad, o_grad) in b.0.borrow_mut().grad.iter_mut().zip(out_grad) {
-        *b_grad += o_grad;
+pub fn add_backward_vec(out: &Vec<Tensor>, a: &Vec<Tensor>, b: &Vec<Tensor>) {
+    let out_grad: Vec<Vec<f32>> = out.iter().map(|o|o.0.borrow().grad.clone()).collect();
+    for i in 0..out.len() {
+        for (a_grad, o_grad) in a[i].0.borrow_mut().grad.iter_mut().zip(&out_grad[i]) {
+            *a_grad += o_grad;
+        }
+        for (b_grad, o_grad) in b[i].0.borrow_mut().grad.iter_mut().zip(&out_grad[i]) {
+            *b_grad += o_grad;
+        }
     }
 }
 pub fn matmul_forward(a: &Tensor, b: &Tensor) -> Tensor {
@@ -337,7 +348,7 @@ pub fn softmax_forward(a: &Vec<Tensor>) -> Vec<Tensor> {
     };
     output
 }
-pub fn softmax_backward(out: Vec<Tensor>, a: Vec<Tensor>) {
+pub fn softmax_backward(out: &Vec<Tensor>, a: &Vec<Tensor>) {
     // for one tensor
     // // fx = e(ai)/exp_sum, a/h - d(a/h)/dx -> d(a/h)/dx = a'h - ah' / h^2
     // // when fx at i and ai
