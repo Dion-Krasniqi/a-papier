@@ -174,7 +174,7 @@ pub fn add_forward_vec(a: &Vec<Tensor>, b: &Vec<Tensor>) -> Vec<Tensor> {
     let mut output = vec![Tensor::zero(shape.clone());a.len()];
     for i in 0..output.len() {
         if a[i].0.borrow().shape != b[i].0.borrow().shape {
-                println!("Shapes are not compatibile, result is LHS.");
+                println!("Shapes are not compatibile, result is LHS1.");
                 return a.clone()
             };
         
