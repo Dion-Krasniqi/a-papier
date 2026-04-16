@@ -504,7 +504,7 @@ pub fn cross_entropy_forward(a: &Vec<Tensor>, targets: &[usize]) -> Tensor {
             loss -= probs[j*cols+target].ln();
         }
     }
-    Tensor::tensor(loss / (targets.len() * a.len()) as f32, vec![1,0])
+    Tensor::tensor(loss / (targets.len() * a.len()) as f32, vec![1,1])
 }
 pub fn cross_entropy_backward(a: &Vec<Tensor>, targets: &[usize]) {
     let rows = a[0].0.borrow().shape[0];
@@ -625,7 +625,7 @@ impl AttentionHead {
         // eeh for now
         vec![self.W_q.clone(), self.W_k.clone(), self.W_v.clone()]
     }
-    pub fn backward(&self, a: Vec<Tensor>, out: Vec<Tensor>) {
+    pub fn backward(&self, out: &Vec<Tensor>, a: &Vec<Tensor>) {
         for i in 0..a.len() {
             // cache/own these
             let Q = matmul_forward(&a[i], &self.W_q);
@@ -658,11 +658,11 @@ impl MaskedAttentionHead {
         let W_v = Tensor::rand(dim_shape.clone());
         MaskedAttentionHead { W_q, W_k, W_v }
     }
-    pub fn forward(&self, x: &Vec<Tensor>) -> Vec<Tensor> {
-        let mut temp = Tensor::zero(x[0].shape());
-        let mut output: Vec<Tensor> = (0..x.len()).map(|_|Tensor::rand(x[0].shape())).collect();
-        for (mut out, tensor) in output.iter_mut().zip(x) {
-            let Q = matmul_forward(&tensor, &self.W_q); // Q = x @ W_q = (block_size x emb_dim) @ (emb_dim x head_dim) = Q(block_size * head_dim), dim_shape = emb_dim * head_dim
+    pub fn forward(&self, a: &Vec<Tensor>) -> Vec<Tensor> {
+        let mut temp = Tensor::zero(a[0].shape());
+        let mut output: Vec<Tensor> = (0..a.len()).map(|_|Tensor::rand(a[0].shape())).collect();
+        for (mut out, tensor) in output.iter_mut().zip(a) {
+            let Q = matmul_forward(&tensor, &self.W_q); // Q = a @ W_q = (block_size x emb_dim) @ (emb_dim x head_dim) = Q(block_size * head_dim), dim_shape = emb_dim * head_dim
             let K = matmul_forward(&tensor, &self.W_k);
             let V = matmul_forward(&tensor, &self.W_v);
             let dk: usize= K.shape().iter().product();   
@@ -686,7 +686,7 @@ impl MaskedAttentionHead {
         // eeh for now
         vec![self.W_q.clone(), self.W_k.clone(), self.W_v.clone()]
     }
-    pub fn backward(&self, a: Vec<Tensor>, out: Vec<Tensor>) {
+    pub fn backward(&self, out: &Vec<Tensor>, a: &Vec<Tensor>) {
         for i in 0..a.len() {
             // cache/own these
             let Q = matmul_forward(&a[i], &self.W_q);
@@ -755,7 +755,7 @@ impl FeedForward {
         params.push(self.biases.1.clone());
         params
     }
-    pub fn backward(&self, x: Vec<Tensor>, out: Vec<Tensor>) {
+    pub fn backward(&self, out: &Vec<Tensor>, x: &Vec<Tensor>) {
         // f1 = weight.0 * x + bias.0
         // f1_relu = relu(f1)
         // f2 = f1_relu * weight.1
@@ -801,7 +801,7 @@ impl LinearLayer {
         }
         output
     }
-    pub fn backward(&mut self, x: Vec<Tensor>, out: Vec<Tensor>) {
+    pub fn backward(&self, out: &Vec<Tensor>, x: &Vec<Tensor>) {
         let length = x[0].shape().iter().product();
         let out_grad: Vec<Vec<f32>> = out.iter().map(|o|o.0.borrow().grad.clone()).collect();
         for (out_g, tensor) in out_grad.iter().zip(x) {
@@ -826,7 +826,7 @@ impl LayerNorm {
         let output: Vec<Tensor> = x.iter().map(|o|layernorm_forward(&o, &self.betta, self.gamma)).collect();
         output
     }
-    pub fn backward(&self, x: Vec<Tensor>, out: Vec<Tensor>) {
+    pub fn backward(&self, out: &Vec<Tensor>, x: &Vec<Tensor>) {
         for i in 0..x.len() {
             layernorm_backward(&out[i], &(x[i]), &self.betta, self.gamma);
         }
