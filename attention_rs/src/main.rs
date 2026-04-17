@@ -31,16 +31,25 @@ fn main(){
         data.push((&tokens[i..block_size+i],&tokens[i+1..block_size+i+1]));
     }
     let head_dim = emb_dim;
-    let emb_x: Vec<Tensor> = data.iter().map(|x| embedding_forward(x.0, &emb_w)).collect(); // x.len() * emb_w.cols = block_size * emb_dim
     let pe = positional_encoding(block_size, emb_dim);
-    let pos_emb_x: Vec<Tensor> = emb_x.iter().map(|e|add_forward(&e,&pe)).collect();
+    
     
     let masked_head = MaskedAttentionHead::new(vec![emb_dim,head_dim]);
     let norm_layer = LayerNorm::new(vec![block_size,head_dim]);
     let attention_head = AttentionHead::new(vec![emb_dim,head_dim]);
-    let mut ffn_layer = FeedForward::new(vec![block_size,head_dim], pos_emb_x.len());
+    let mut ffn_layer = FeedForward::new(vec![block_size,head_dim], data.len());
     let linear_layer = LinearLayer::new(vec![block_size,emb_dim]);
-    for _ in 0..10{
+    let mut params: Vec<Tensor> = vec![norm_layer.betta.clone()];
+    params.extend(masked_head.parameters());
+    params.extend(attention_head.parameters());
+    params.extend(ffn_layer.parameters());
+    params.extend(linear_layer.parameters());
+    params.push(emb_w.clone());
+    let y = data.iter().map(|(x)|x.1).collect();
+    for _ in 0..10000{
+        let emb_x: Vec<Tensor> = data.iter().map(|x| embedding_forward(x.0, &emb_w)).collect(); // x.len() * emb_w.cols = block_size * emb_dim
+        let pos_emb_x: Vec<Tensor> = emb_x.iter().map(|e|add_forward(&e,&pe)).collect();
+
         let masked_x = masked_head.forward(&pos_emb_x);
         let add_1 = add_forward_vec(&pos_emb_x, &masked_x);
         
@@ -56,10 +65,12 @@ fn main(){
 
         let linear_x = linear_layer.forward(&add_norm3);
         let softmax_x = softmax_forward(&linear_x);
-        let loss = cross_entropy_forward(&softmax_x, &[3, 1, 8, 0, 1]); // dummy
-        masked_x[0].print();
+        let loss = cross_entropy_forward(&softmax_x, &y);
+        println!(
+            "{:?}", loss.data()
+        );
         loss.set_grad(1.0);
-        cross_entropy_backward(&softmax_x, &[0, 1, 0, 0, 0]);
+        cross_entropy_backward(&softmax_x, &y);
         softmax_backward(&softmax_x, &linear_x); 
         linear_layer.backward(&linear_x, &add_norm3);
         norm_layer.backward(&add_norm3, &add_3);
@@ -71,9 +82,11 @@ fn main(){
         norm_layer.backward(&add_norm1, &add_1);
         add_backward_vec(&add_1, &pos_emb_x, &masked_x);
         masked_head.backward(&masked_x, &pos_emb_x);
-        masked_x[0].print();
-        // adjust params
+        emb_x.iter().zip(data.clone()).map(|(e, x)| embedding_backward(&e, &emb_w, x.0));
+        pos_emb_x.iter().zip(emb_x).map(|(p,e)|add_backward(&p,&e,&pe));
+        // adjust weights
+        for p in &params {
+            p.adjust_data(-0.1);
+        }
     }
-
-
 }

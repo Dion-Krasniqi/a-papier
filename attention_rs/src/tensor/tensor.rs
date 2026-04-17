@@ -66,6 +66,12 @@ impl Tensor {
             *g = val;
         };
     }
+    pub fn adjust_data(&self, multiplier: f32) {
+        let grad = self.grad();
+        for (d, g) in self.0.borrow_mut().data.iter_mut().zip(grad) {
+            *d += multiplier*g;
+        };
+    }
     pub fn data(&self) -> Vec<f32> {
         self.0.borrow().data.clone()
     }
@@ -495,22 +501,22 @@ pub fn embedding_backward(out: &Tensor, weight: &Tensor, tokens: &[usize]) {
         }
     }
 }
-pub fn cross_entropy_forward(a: &Vec<Tensor>, targets: &[usize]) -> Tensor {
+pub fn cross_entropy_forward(a: &Vec<Tensor>, targets: &Vec<&[usize]>) -> Tensor {
     let cols = a[0].0.borrow().shape[1];
     let mut loss = 0.0;
     for i in 0..a.len(){
         let probs = a[i].0.borrow().data.clone();
-        for (j, &target) in targets.iter().enumerate() {
+        for (j, &target) in targets[i].iter().enumerate() {
             loss -= probs[j*cols+target].ln();
         }
     }
     Tensor::tensor(loss / (targets.len() * a.len()) as f32, vec![1,1])
 }
-pub fn cross_entropy_backward(a: &Vec<Tensor>, targets: &[usize]) {
+pub fn cross_entropy_backward(a: &Vec<Tensor>, targets: &Vec<&[usize]>) {
     let rows = a[0].0.borrow().shape[0];
     let cols = a[0].0.borrow().shape[1];
     for i in 0..a.len(){
-        for (j, &target) in targets.iter().enumerate() {
+        for (j, &target) in targets[i].iter().enumerate() {
             a[i].0.borrow_mut().grad[j*cols+target] -= 1.0; 
         }
     }
@@ -809,6 +815,9 @@ impl LinearLayer {
                 tensor.0.borrow_mut().grad[i] += (out_g[i]) * (self.weights.0.borrow().data[i]);
             }
         }
+    }
+    pub fn parameters(&self) -> Vec<Tensor> {
+        vec![self.weights.clone(),self.biases.clone()]
     }
 }
 pub struct LayerNorm {
