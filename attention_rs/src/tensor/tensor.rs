@@ -619,7 +619,7 @@ impl AttentionHead {
             let Q = matmul_forward(&tensor, &self.W_q); // Q = x @ W_q = (block_size x emb_dim) @ (emb_dim x head_dim) = Q(block_size * head_dim), dim_shape = emb_dim * head_dim
             let K = matmul_forward(&tensor, &self.W_k);
             let V = matmul_forward(&tensor, &self.W_v);
-            let dk: usize= K.shape().iter().product();   
+            let dk: usize= K.shape()[1];   
             let Q_Kt = matmul_forward(&Q, &transpose(&K)); // (block_size * head_dim) @ (head_dim * block_size)
             let scaling_factor = 1./((dk as f32).sqrt()); //Tensor::tensor(1./((dk as f32).sqrt()), Q_Kt.shape()); 
             temp = softmax_forward(&vec![(&Q_Kt * scaling_factor)])[0].clone();
@@ -639,7 +639,7 @@ impl AttentionHead {
             let V = matmul_forward(&a[i], &self.W_v);
             let Kt = transpose(&K);
             let Q_Kt = matmul_forward(&Q, &Kt);
-            let dk: usize= K.shape().iter().product(); 
+            let dk: usize= K.shape()[1]; 
             let scaling_factor = 1./((dk as f32).sqrt());
             let softmax_res = softmax_forward(&vec![(&Q_Kt * scaling_factor)])[0].clone();
             matmul_backward(&out[i], &softmax_res, &V);
@@ -671,7 +671,7 @@ impl MaskedAttentionHead {
             let Q = matmul_forward(&tensor, &self.W_q); // Q = a @ W_q = (block_size x emb_dim) @ (emb_dim x head_dim) = Q(block_size * head_dim), dim_shape = emb_dim * head_dim
             let K = matmul_forward(&tensor, &self.W_k);
             let V = matmul_forward(&tensor, &self.W_v);
-            let dk: usize= K.shape().iter().product();   
+            let dk: usize= K.shape()[1];   
             let Q_Kt = matmul_forward(&Q, &transpose(&K)); // (block_size * head_dim) @ (head_dim * block_size)
             let mask = Tensor::like_tensor(&Q_Kt);
             let scaling_factor = 1./((dk as f32).sqrt()); //Tensor::tensor(1./((dk as f32).sqrt()), Q_Kt.shape()); 
@@ -679,7 +679,7 @@ impl MaskedAttentionHead {
             let cols = Q_Kt.shape()[1];
             //mask
             for i in 0..rows {
-                for j in i..cols {
+                for j in (i+1)..cols {
                     Q_Kt.0.borrow_mut().data[i*cols+j] += f32::NEG_INFINITY;
                 }
             }
@@ -700,13 +700,13 @@ impl MaskedAttentionHead {
             let V = matmul_forward(&a[i], &self.W_v);
             let Kt = transpose(&K);
             let Q_Kt = matmul_forward(&Q, &Kt);
-            let dk: usize= K.shape().iter().product(); 
+            let dk: usize= K.shape()[1]; 
             let scaling_factor = 1./((dk as f32).sqrt());
             let rows = Q_Kt.shape()[0];
             let cols = Q_Kt.shape()[1];
             //mask
             for i in 0..rows {
-                for j in i..cols {
+                for j in (i+1)..cols {
                     Q_Kt.0.borrow_mut().data[i*cols+j] += f32::NEG_INFINITY;
                 }
             }
@@ -813,6 +813,8 @@ impl LinearLayer {
         for (out_g, tensor) in out_grad.iter().zip(x) {
             for i in 0..length {
                 tensor.0.borrow_mut().grad[i] += (out_g[i]) * (self.weights.0.borrow().data[i]);
+                self.weights.0.borrow_mut().grad[i] += (out_g[i]) * tensor.0.borrow_mut().data[i];
+                self.biases.0.borrow_mut().grad[i] += out_g[i];
             }
         }
     }
@@ -827,8 +829,8 @@ pub struct LayerNorm {
 impl LayerNorm {
     pub fn new(shape: Vec<usize>) -> LayerNorm {
         LayerNorm {
-            betta: Tensor::rand(shape.clone()),
-            gamma: random::<f32>(),
+            betta: Tensor::zero(shape.clone()),
+            gamma: 1.0,
         }
     }
     pub fn forward(&self, x: &Vec<Tensor>) -> Vec<Tensor> {

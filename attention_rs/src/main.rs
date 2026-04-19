@@ -35,33 +35,38 @@ fn main(){
     
     
     let masked_head = MaskedAttentionHead::new(vec![emb_dim,head_dim]);
-    let norm_layer = LayerNorm::new(vec![block_size,head_dim]);
+    let norm_layer1 = LayerNorm::new(vec![block_size,head_dim]);
+    let norm_layer2 = LayerNorm::new(vec![block_size,head_dim]);
+    let norm_layer3 = LayerNorm::new(vec![block_size,head_dim]);
     let attention_head = AttentionHead::new(vec![emb_dim,head_dim]);
     let mut ffn_layer = FeedForward::new(vec![block_size,head_dim], data.len());
-    let linear_layer = LinearLayer::new(vec![block_size,emb_dim]);
-    let mut params: Vec<Tensor> = vec![norm_layer.betta.clone()];
+    let linear_layer = LinearLayer::new(vec![emb_dim,vocab_size]);
+    let mut params: Vec<Tensor> = vec![norm_layer1.betta.clone(),norm_layer2.betta.clone(),norm_layer3.betta.clone()];
     params.extend(masked_head.parameters());
     params.extend(attention_head.parameters());
     params.extend(ffn_layer.parameters());
     params.extend(linear_layer.parameters());
-    params.push(emb_w.clone());
-    let y = data.iter().map(|(x)|x.1).collect();
+    let y : Vec<&[usize]> = data.iter().map(|(x)|x.1).collect();
+    println!("{:?}", y);
     for _ in 0..10000{
+        for p in &params {
+            p.set_grad(0.0);
+        }
         let emb_x: Vec<Tensor> = data.iter().map(|x| embedding_forward(x.0, &emb_w)).collect(); // x.len() * emb_w.cols = block_size * emb_dim
         let pos_emb_x: Vec<Tensor> = emb_x.iter().map(|e|add_forward(&e,&pe)).collect();
 
         let masked_x = masked_head.forward(&pos_emb_x);
         let add_1 = add_forward_vec(&pos_emb_x, &masked_x);
         
-        let add_norm1 = norm_layer.forward(&add_1);
+        let add_norm1 = norm_layer1.forward(&add_1);
 
         let attention_x = attention_head.forward(&add_norm1);
         let add_2 = add_forward_vec(&add_norm1, &attention_x);
-        let add_norm2 = norm_layer.forward(&add_2);
+        let add_norm2 = norm_layer2.forward(&add_2);
 
         let ffn_x = ffn_layer.forward(&add_norm2);
         let add_3 = add_forward_vec(&add_norm2, &ffn_x);
-        let add_norm3 = norm_layer.forward(&add_3);
+        let add_norm3 = norm_layer3.forward(&add_3);
 
         let linear_x = linear_layer.forward(&add_norm3);
         let softmax_x = softmax_forward(&linear_x);
@@ -73,20 +78,20 @@ fn main(){
         cross_entropy_backward(&softmax_x, &y);
         softmax_backward(&softmax_x, &linear_x); 
         linear_layer.backward(&linear_x, &add_norm3);
-        norm_layer.backward(&add_norm3, &add_3);
+        norm_layer3.backward(&add_norm3, &add_3);
         add_backward_vec(&add_3, &add_norm2, &ffn_x);
         ffn_layer.backward(&ffn_x, &add_norm2);
-        norm_layer.backward(&add_norm2, &add_2);
+        norm_layer2.backward(&add_norm2, &add_2);
         add_backward_vec(&add_2, &add_norm1, &attention_x);
         attention_head.backward(&attention_x, &add_norm1);
-        norm_layer.backward(&add_norm1, &add_1);
+        norm_layer1.backward(&add_norm1, &add_1);
         add_backward_vec(&add_1, &pos_emb_x, &masked_x);
         masked_head.backward(&masked_x, &pos_emb_x);
-        emb_x.iter().zip(data.clone()).map(|(e, x)| embedding_backward(&e, &emb_w, x.0));
-        pos_emb_x.iter().zip(emb_x).map(|(p,e)|add_backward(&p,&e,&pe));
+        emb_x.iter().zip(data.clone()).for_each(|(e, x)| embedding_backward(&e, &emb_w, x.0));
+        pos_emb_x.iter().zip(emb_x).for_each(|(p,e)|add_backward(&p,&e,&pe));
         // adjust weights
         for p in &params {
-            p.adjust_data(-0.1);
+            p.adjust_data(-0.10);
         }
     }
 }
