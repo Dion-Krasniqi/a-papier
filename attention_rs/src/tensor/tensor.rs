@@ -106,7 +106,7 @@ impl Mul<f32> for &Tensor {
         let shape = self.shape();
         let output = TensorData{
             data: self.0.borrow_mut().data.iter().map(|a| a * other).collect(),
-            grad: vec![0.0f32;32],
+            grad: vec![0.0f32;shape.iter().product()],
             shape,
             children: vec![self.clone()],
         };
@@ -119,7 +119,7 @@ impl Add<f32> for &Tensor {
         let shape = self.shape();
         let output = TensorData{
             data: self.0.borrow_mut().data.iter().map(|a| a + other).collect(),
-            grad: vec![0.0f32;32],
+            grad: vec![0.0f32;shape.iter().product()],
             shape,
             children: vec![self.clone()],
         };
@@ -337,20 +337,23 @@ pub fn sigmoid_backward(out: &Tensor, a: &Tensor) {
 }
 pub fn softmax_forward(a: &Vec<Tensor>) -> Vec<Tensor> {
     let shape = a[0].shape();
-    let size: usize = shape.iter().product();  
-    let mut exp_sum = vec![0.0f32;a.len()];
-    for (e, tensor) in exp_sum.iter_mut().zip(a.clone()) {
-        *e = tensor.0.borrow().data.iter().map(|o|o.exp()).sum();
+    let size: usize = shape.iter().product();
+    let mut exp_sum: Vec<f32> = vec![0.0f32;a.len()];
+    let mut shifted: Vec<Vec<f32>> = vec![vec![0.0f32;size];a.len()];
+    for i in 0..a.len() {
+        let max = a[i].0.borrow().data.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+        shifted[i] = a[i].0.borrow().data.iter().map(|x| x - max).collect();
+        exp_sum[i] = shifted[i].iter().map(|x| x.exp()).sum();
     }
     let mut output = vec![Tensor::zero(shape.clone());a.len()];
-    for ((out, tensor), exp) in output.iter_mut().zip(a).zip(exp_sum) {
+    for i in 0..a.len() {
         let temp = TensorData {
-            data: tensor.0.borrow().data.clone().iter().map(|o|(*o).exp()/exp).collect(),
+            data: shifted[i].clone().iter().map(|o|(*o).exp()/exp_sum[i]).collect(),
             grad: vec![0.0f32;size],
             shape: shape.clone(),
-            children: vec![tensor.clone()],
+            children: vec![a[i].clone()],
         };
-        *out = Tensor(Rc::new(RefCell::new(temp)));
+        output[i] = Tensor(Rc::new(RefCell::new(temp)));
     };
     output
 }
@@ -363,8 +366,16 @@ pub fn softmax_backward(out: &Vec<Tensor>, a: &Vec<Tensor>) {
     // // when fx at i and a j (j!=i)
     // // d(fx)/d(aj) = e(ai)' * sum - (sum') * e(ai) / sum^2, e(ai)' = 0, since its d(fx) per d(aj) so e(ai) as const
     // // d(fx)/d(aj) = 0 - e(aj)*e(ai)/ sum^2 -> e(aj)*e(ai)/sum^2
-    let exp_sum: Vec<f32> = a.iter().map(|tensor|tensor.0.borrow().data.iter().map(|o|o.exp()).sum()).collect();
-    let a_data: Vec<Vec<f32>> = a.iter().map(|tensor|tensor.0.borrow().data.clone()).collect();
+    let exp_sum: Vec<f32> = a.iter().map(|tensor| {
+        let data = tensor.0.borrow().data.clone();
+        let max = data.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+        data.iter().map(|o|(o-max).exp()).sum()
+    }).collect();
+    let a_data: Vec<Vec<f32>> = a.iter().map(|tensor| {
+        let data = tensor.0.borrow().data.clone();
+        let max = data.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+        data.iter().map(|o|(o-max).exp()).collect()
+    }).collect();
     let out_data: Vec<Vec<f32>> = out.iter().map(|o|o.0.borrow().data.clone()).collect();
     let out_grad: Vec<Vec<f32>> = out.iter().map(|o|o.0.borrow().grad.clone()).collect();
     let squared_sum: Vec<f32> = exp_sum.iter().map(|e|e.powf(2.0)).collect();
@@ -464,7 +475,7 @@ pub fn layernorm_backward(out: &Tensor, a: &Tensor, betta: &Tensor, gamma: f32) 
     for i in 0..rows {
         for j in 0..cols {
             let out_wo_gamma = (a_vec[i*cols+j]-varexs[i].0)/varexs[i].1;
-            a_grad[i*cols+j] += gamma * (1.0/(cols as f32 * varexs[i/cols].1)) * ((cols as f32) * out_grad[i*cols+j]
+            a_grad[i*cols+j] += gamma * (1.0/(cols as f32 * varexs[i].1)) * ((cols as f32) * out_grad[i*cols+j]
             - douti[i] - out_wo_gamma * douti_row[i]);
 
         }
@@ -507,7 +518,7 @@ pub fn cross_entropy_forward(a: &Vec<Tensor>, targets: &Vec<&[usize]>) -> Tensor
     for i in 0..a.len(){
         let probs = a[i].0.borrow().data.clone();
         for (j, &target) in targets[i].iter().enumerate() {
-            loss -= probs[j*cols+target].ln();
+            loss -= (probs[j*cols+target] + 1.0e-8).ln();
         }
     }
     Tensor::tensor(loss / (targets.len() * a.len()) as f32, vec![1,1])
@@ -526,9 +537,9 @@ pub fn positional_encoding(seq_len: usize, emb_dim: usize) -> Tensor {
     for i in 0..seq_len {
         for j in 0..emb_dim {
             data[i*emb_dim+j] = if j%2==0 {
-                (j as f32/1000_f32.powf(2. * j as f32/emb_dim as f32)).sin()
+                (i as f32/1000_f32.powf(2. * j as f32/emb_dim as f32)).sin()
             } else {
-                (j as f32/1000_f32.powf(2. * j as f32/emb_dim as f32)).cos()
+                (i as f32/1000_f32.powf(2. * j as f32/emb_dim as f32)).cos()
             };
         }
     }
@@ -793,30 +804,35 @@ pub struct LinearLayer {
 impl LinearLayer {
     pub fn new(shape: Vec<usize>) -> LinearLayer {
         let weights = Tensor::rand(shape.clone());
-        let biases = Tensor::rand(shape.clone());
+        // HARDCODED
+        let biases = Tensor::rand(vec![8,shape.clone()[1]]);
         LinearLayer { weights, biases}
     }
     pub fn forward(&self, x: &Vec<Tensor>) -> Vec<Tensor> {
         let shape = x[0].shape();
-        let length = shape.iter().product();
+        //let length = shape.iter().product();
         let mut output: Vec<Tensor> = (0..x.len()).map(|_|Tensor::rand(shape.clone())).collect();
         for (out, tensor) in output.iter_mut().zip(x) {
-            for i in 0..length {
-                out.0.borrow_mut().data[i] = tensor.0.borrow().data[i] * self.weights.0.borrow().data[i] + self.biases.0.borrow().data[i];
-            }
+            *out = add_forward(&matmul_forward(&tensor, &self.weights), &self.biases);
+            // for i in 0..length {
+            //     out.0.borrow_mut().data[i] = matmul_forward(tensor.0.borrow().data[i],self.weights.0.borrow().data[i]) + self.biases.0.borrow().data[i];
+            // }
         }
         output
     }
     pub fn backward(&self, out: &Vec<Tensor>, x: &Vec<Tensor>) {
-        let length = x[0].shape().iter().product();
-        let out_grad: Vec<Vec<f32>> = out.iter().map(|o|o.0.borrow().grad.clone()).collect();
-        for (out_g, tensor) in out_grad.iter().zip(x) {
-            for i in 0..length {
-                tensor.0.borrow_mut().grad[i] += (out_g[i]) * (self.weights.0.borrow().data[i]);
-                self.weights.0.borrow_mut().grad[i] += (out_g[i]) * tensor.0.borrow_mut().data[i];
-                self.biases.0.borrow_mut().grad[i] += out_g[i];
+        //let length = x[0].shape().iter().product();
+        //let out_grad: Vec<Vec<f32>> = out.iter().map(|o|o.0.borrow().grad.clone()).collect();
+        //for (out_g, tensor) in out_grad.iter().zip(x) {
+            for i in 0..out.len() {
+                let matmul_res = matmul_forward(&x[i], &self.weights);
+                add_backward(&out[i], &matmul_res, &self.biases);
+                matmul_backward(&matmul_res, &x[i], &self.weights);
+                // tensor.0.borrow_mut().grad[i] += (out_g[i]) * (self.weights.0.borrow().data[i]);
+                // self.weights.0.borrow_mut().grad[i] += (out_g[i]) * tensor.0.borrow_mut().data[i];
+                // self.biases.0.borrow_mut().grad[i] += out_g[i];
             }
-        }
+        //}
     }
     pub fn parameters(&self) -> Vec<Tensor> {
         vec![self.weights.clone(),self.biases.clone()]
