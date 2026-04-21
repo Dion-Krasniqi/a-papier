@@ -798,44 +798,37 @@ impl FeedForward {
     }
 }
 pub struct LinearLayer {
-    pub weights: Tensor,
-    pub biases: Tensor,
+    pub weights: Vec<Tensor>,
+    pub biases: Vec<Tensor>,
 }
 impl LinearLayer {
-    pub fn new(shape: Vec<usize>) -> LinearLayer {
-        let weights = Tensor::rand(shape.clone());
-        // HARDCODED
-        let biases = Tensor::rand(vec![8,shape.clone()[1]]);
+    pub fn new(shape: Vec<usize>, block_size: usize, in_len: usize) -> LinearLayer {
+        // matmul(x, weights) = (block_size x emb_dim) @ (emb_dim x vocab_size) = block_size x vocab_size
+        // add(matmul, bias) = (block_size x vocab_size) + (block_size x vocab_size)
+        let weights = vec![Tensor::rand(shape.clone());in_len];
+        let biases = vec![Tensor::rand(vec![block_size, shape.clone()[1]]);in_len];
         LinearLayer { weights, biases}
     }
-    pub fn forward(&self, x: &Vec<Tensor>) -> Vec<Tensor> {
-        let shape = x[0].shape();
-        //let length = shape.iter().product();
-        let mut output: Vec<Tensor> = (0..x.len()).map(|_|Tensor::rand(shape.clone())).collect();
-        for (out, tensor) in output.iter_mut().zip(x) {
-            *out = add_forward(&matmul_forward(&tensor, &self.weights), &self.biases);
-            // for i in 0..length {
-            //     out.0.borrow_mut().data[i] = matmul_forward(tensor.0.borrow().data[i],self.weights.0.borrow().data[i]) + self.biases.0.borrow().data[i];
-            // }
+    pub fn forward(&self, a: &Vec<Tensor>) -> Vec<Tensor> {
+        let shape = a[0].shape();
+        let length = a.len();
+        let mut output: Vec<Tensor> = (0..a.len()).map(|_|Tensor::rand(shape.clone())).collect();
+        for i in 0..length {
+            output[i] = add_forward(&matmul_forward(&a[i], &self.weights[i]), &self.biases[i]);
         }
         output
     }
-    pub fn backward(&self, out: &Vec<Tensor>, x: &Vec<Tensor>) {
-        //let length = x[0].shape().iter().product();
-        //let out_grad: Vec<Vec<f32>> = out.iter().map(|o|o.0.borrow().grad.clone()).collect();
-        //for (out_g, tensor) in out_grad.iter().zip(x) {
+    pub fn backward(&self, out: &Vec<Tensor>, a: &Vec<Tensor>) {
             for i in 0..out.len() {
-                let matmul_res = matmul_forward(&x[i], &self.weights);
-                add_backward(&out[i], &matmul_res, &self.biases);
-                matmul_backward(&matmul_res, &x[i], &self.weights);
-                // tensor.0.borrow_mut().grad[i] += (out_g[i]) * (self.weights.0.borrow().data[i]);
-                // self.weights.0.borrow_mut().grad[i] += (out_g[i]) * tensor.0.borrow_mut().data[i];
-                // self.biases.0.borrow_mut().grad[i] += out_g[i];
+                let matmul_res = matmul_forward(&a[i], &self.weights[i]);
+                add_backward(&out[i], &matmul_res, &self.biases[i]);
+                matmul_backward(&matmul_res, &a[i], &self.weights[i]);
             }
-        //}
     }
     pub fn parameters(&self) -> Vec<Tensor> {
-        vec![self.weights.clone(),self.biases.clone()]
+        let mut params: Vec<Tensor> = self.biases.clone();
+        params.extend(self.weights.clone());
+        params
     }
 }
 pub struct LayerNorm {

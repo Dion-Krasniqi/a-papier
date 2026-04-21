@@ -22,7 +22,6 @@ fn main(){
     let emb_dim: usize = 10;
     let emb_w = Tensor::rand(vec![vocab_size, emb_dim]);
     let block_size: usize = 8; //dummy for now
-    println!("{}", text.len());
     let n = (0.9 * text.len() as f32) as usize;
     let train_data = &tokens[..n];
     let val_data = &tokens[n..];
@@ -37,13 +36,10 @@ fn main(){
     let masked_head = MaskedAttentionHead::new(vec![emb_dim,head_dim]);
     let norm_layer1 = LayerNorm::new(vec![block_size,head_dim]);
     let norm_layer2 = LayerNorm::new(vec![block_size,head_dim]);
-    //let norm_layer3 = LayerNorm::new(vec![block_size,head_dim]);
-    //let attention_head = AttentionHead::new(vec![emb_dim,head_dim]);
     let mut ffn_layer = FeedForward::new(vec![block_size,head_dim], data.len());
-    let linear_layer = LinearLayer::new(vec![emb_dim,vocab_size]);
+    let linear_layer = LinearLayer::new(vec![emb_dim,vocab_size], block_size, data.len());
     let mut params: Vec<Tensor> = vec![norm_layer1.betta.clone(),norm_layer2.betta.clone()];
     params.extend(masked_head.parameters());
-    //params.extend(attention_head.parameters());
     params.extend(ffn_layer.parameters());
     params.extend(linear_layer.parameters());
     let y : Vec<&[usize]> = data.iter().map(|(x)|x.1).collect();
@@ -83,7 +79,7 @@ fn main(){
         pos_emb_x.iter().zip(emb_x).for_each(|(p,e)|add_backward(&p,&e,&pe));
         // adjust weights
         for p in &params {
-            p.adjust_data(-0.01);
+            p.adjust_data(-0.001);
         }
     }
 }
