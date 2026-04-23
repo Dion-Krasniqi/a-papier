@@ -336,28 +336,42 @@ pub fn sigmoid_backward(out: &Tensor, a: &Tensor) {
     }
 }
 pub fn softmax_forward(a: &Vec<Tensor>) -> Vec<Tensor> {
-    let shape = a[0].shape();
+    let shape = a[0].shape(); // mxn
     let size: usize = shape.iter().product();
-    let mut exp_sum: Vec<f32> = vec![0.0f32;a.len()];
+    let cols = shape[1].clone();
+    let rows = shape[0].clone();
+
+    //let mut exp_sum: Vec<f32> = vec![0.0f32;a.len()];
+    let mut exp_sums: Vec<f32> = vec![0.0f32;a.len()*shape[0].clone()];
     let mut shifted: Vec<Vec<f32>> = vec![vec![0.0f32;size];a.len()];
     for i in 0..a.len() {
         let max = a[i].0.borrow().data.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
         shifted[i] = a[i].0.borrow().data.iter().map(|x| x - max).collect();
-        exp_sum[i] = shifted[i].iter().map(|x| x.exp()).sum();
+        for j in 0..shape[0].clone() {
+            for k in 0..shape[1].clone() {
+                exp_sums[i*rows+j] += shifted[i][j*cols+k].exp();
+            }
+        }
     }
     let mut output = vec![Tensor::zero(shape.clone());a.len()];
     for i in 0..a.len() {
+        for j in 0..rows {
+            for k in 0..cols {
+                shifted[i][j*cols+k] = shifted[i][j*cols+k].exp()/exp_sums[i*rows+j];
+            }
+        }
         let temp = TensorData {
-            data: shifted[i].clone().iter().map(|o|(*o).exp()/exp_sum[i]).collect(),
-            grad: vec![0.0f32;size],
-            shape: shape.clone(),
-            children: vec![a[i].clone()],
-        };
+                data: shifted[i].clone(),
+                grad: vec![0.0f32;size],
+                shape: shape.clone(),
+                children: vec![a[i].clone()],
+            };
         output[i] = Tensor(Rc::new(RefCell::new(temp)));
     };
     output
 }
 pub fn softmax_backward(out: &Vec<Tensor>, a: &Vec<Tensor>) {
+    //OLD AND WRONG
     // for one tensor
     // // fx = e(ai)/exp_sum, a/h - d(a/h)/dx -> d(a/h)/dx = a'h - ah' / h^2
     // // when fx at i and ai
@@ -514,14 +528,15 @@ pub fn embedding_backward(out: &Tensor, weight: &Tensor, tokens: &[usize]) {
 }
 pub fn cross_entropy_forward(a: &Vec<Tensor>, targets: &Vec<&[usize]>) -> Tensor {
     let cols = a[0].0.borrow().shape[1];
+    let size: usize = a[0].shape().iter().product();
     let mut loss = 0.0;
     for i in 0..a.len(){
         let probs = a[i].0.borrow().data.clone();
         for (j, &target) in targets[i].iter().enumerate() {
-            loss -= (probs[j*cols+target] + 1.0e-8).ln();
+            loss -= (target as f32) * (probs[j*cols+target] + 1.0e-8).ln();
         }
     }
-    Tensor::tensor(loss / (targets.len() * a.len()) as f32, vec![1,1])
+    Tensor::tensor(loss/((targets.len()*a.len()) as f32), vec![1,1])
 }
 pub fn cross_entropy_backward(a: &Vec<Tensor>, targets: &Vec<&[usize]>) {
     let rows = a[0].0.borrow().shape[0];
