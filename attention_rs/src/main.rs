@@ -79,7 +79,7 @@ fn main(){
         pos_emb_x.iter().zip(emb_x).for_each(|(p,e)|add_backward(&p,&e,&pe));
         // adjust weights
         for p in &params {
-            p.adjust_data(-0.001);
+            p.adjust_data(-10.);
         }
     }
 }

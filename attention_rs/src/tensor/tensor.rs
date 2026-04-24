@@ -380,30 +380,47 @@ pub fn softmax_backward(out: &Vec<Tensor>, a: &Vec<Tensor>) {
     // // when fx at i and a j (j!=i)
     // // d(fx)/d(aj) = e(ai)' * sum - (sum') * e(ai) / sum^2, e(ai)' = 0, since its d(fx) per d(aj) so e(ai) as const
     // // d(fx)/d(aj) = 0 - e(aj)*e(ai)/ sum^2 -> e(aj)*e(ai)/sum^2
-    let exp_sum: Vec<f32> = a.iter().map(|tensor| {
-        let data = tensor.0.borrow().data.clone();
-        let max = data.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-        data.iter().map(|o|(o-max).exp()).sum()
-    }).collect();
-    let a_data: Vec<Vec<f32>> = a.iter().map(|tensor| {
-        let data = tensor.0.borrow().data.clone();
-        let max = data.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-        data.iter().map(|o|(o-max).exp()).collect()
-    }).collect();
+    let shape = a[0].shape();
+    let size = shape.iter().product();
+    let rows = shape[0];
+    let cols = shape[1];
+    let mut exp_sum: Vec<f32> = vec![0.0f32;a.len()*shape[0].clone()];
+    let mut shifted: Vec<Vec<f32>> = vec![vec![0.0f32;size];a.len()];
+    for i in 0..a.len() {
+        let max = a[i].0.borrow().data.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+        shifted[i] = a[i].0.borrow().data.iter().map(|x| x - max).collect();
+        for j in 0..shape[0].clone() {
+            for k in 0..shape[1].clone() {
+                exp_sum[i*rows+j] += shifted[i][j*cols+k].exp();
+            }
+        }
+    }
     let out_data: Vec<Vec<f32>> = out.iter().map(|o|o.0.borrow().data.clone()).collect();
     let out_grad: Vec<Vec<f32>> = out.iter().map(|o|o.0.borrow().grad.clone()).collect();
     let squared_sum: Vec<f32> = exp_sum.iter().map(|e|e.powf(2.0)).collect();
     let length = out_data[0].len();
     for k in 0..a.len() {
         for i in 0..length{
-                for j in 0..length{
-                    if i==j {
-                        a[k].0.borrow_mut().grad[i] += ((a_data[k])[i] * exp_sum[k] - (a_data[k])[i].powf(2.0))
-                        / squared_sum[k] * (out_grad[k])[i];
-                    } else {
-                        a[k].0.borrow_mut().grad[i] += ((a_data[k])[j] * (a_data[k])[i]) / squared_sum[k] * (out_grad[k])[j];
+                for j in 0..rows {
+                    for l in 0..cols {
+                        if i == j*cols + l {
+                            // i can i these ig
+                            a[k].0.borrow_mut().grad[i] += (shifted[k][j*cols+l] * exp_sum[k*rows+j] - shifted[k][j*cols+l])
+                            / squared_sum[k*rows+j] * out_grad[k][i];
+                        } else {
+                            a[k].0.borrow_mut().grad[i] += (exp_sum[k*rows+j] - shifted[k][j*cols+l])
+                            / squared_sum[k*rows+j] * out_grad[k][i];
+                        }
                     }
                 }
+                // for j in 0..length{
+                //     if i==j {
+                //         a[k].0.borrow_mut().grad[i] += ((shifted[k])[i] * exp_sum[k+cols] - (shifted[k])[i].powf(2.0))
+                //         / squared_sum[k+cols] * (out_grad[k])[i];
+                //     } else {
+                //         a[k].0.borrow_mut().grad[i] += ((shifted[k])[j] * (shifted[k])[i]) / squared_sum[k+cols] * (out_grad[k])[j];
+                //     }
+                // }
         }
     }
 }
