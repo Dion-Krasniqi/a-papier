@@ -16,7 +16,7 @@ impl Tensor {
     // add seed option
     pub fn rand(shape: Vec<usize>) -> Tensor {
         let size: usize = shape.iter().product();
-        let data: Vec<f32> = (0..size).map(|_| random::<f32>()).collect();
+        let data: Vec<f32> = (0..size).map(|_| (random::<f32>()-0.5)*0.02).collect();
         let output = TensorData {
             data,
             grad: vec![0.0f32;size],
@@ -256,13 +256,10 @@ pub fn matmul_backward(out: &Tensor, a: &Tensor, b: &Tensor) {
     let n = b.0.borrow().shape[0];
     let p = out.0.borrow().shape[1];
     let b_vec = b.0.borrow().data.clone();
-    let size = m*n;
-    //a_grad
-    let mut a_grad = vec![0.0f32;size];
     for i in 0..m {
         for j in 0..n{
             for k in 0..p{
-                a_grad[i*n+j] += out_grad[i*p+k] * b_vec[j*p+k];
+                a.0.borrow_mut().grad [i*n+j] += out_grad[i*p+k] * b_vec[j*p+k];
             }
         }
     }
@@ -271,17 +268,13 @@ pub fn matmul_backward(out: &Tensor, a: &Tensor, b: &Tensor) {
     let n = b.0.borrow().shape[0];
     let p = out.0.borrow().shape[1];
     let a_vec = a.0.borrow().data.clone();
-    let size = n*p;
-    let mut b_grad = vec![0.0f32;size];
     for i in 0..n {
         for j in 0..m{
             for k in 0..p{
-                b_grad[i*p+k] += out_grad[j*p+k] * a_vec[i*m+j];
+                b.0.borrow_mut().grad[i*p+k] += out_grad[j*p+k] * a_vec[i*m+j];
             }
         }
     }
-    a.0.borrow_mut().grad = a_grad;
-    b.0.borrow_mut().grad = b_grad;
 }
 pub fn tanh_forward(a: &Tensor) -> Tensor {
     let size = a.0.borrow().shape.iter().product();
@@ -404,12 +397,15 @@ pub fn softmax_backward(out: &Vec<Tensor>, a: &Vec<Tensor>) {
                 for j in 0..rows {
                     for l in 0..cols {
                         if i == j*cols + l {
-                            // i can i these ig
-                            a[k].0.borrow_mut().grad[i] += (shifted[k][j*cols+l] * exp_sum[k*rows+j] - shifted[k][j*cols+l])
-                            / squared_sum[k*rows+j] * out_grad[k][i];
+                            // a[k].0.borrow_mut().grad[i] += (shifted[k][i] * exp_sum[k*rows+j] - shifted[k][i])
+                            // / squared_sum[k*rows+j] * out_grad[k][i];
+                            // RECHECK THE INDEXING
+                            a[k].0.borrow_mut().grad[i] += (out_data[k][j*cols+l]*(1.0-out_data[k][j*cols+l]))
+                             * out_grad[k][i];
+                            
                         } else {
-                            a[k].0.borrow_mut().grad[i] += (exp_sum[k*rows+j] - shifted[k][j*cols+l])
-                            / squared_sum[k*rows+j] * out_grad[k][i];
+                            a[k].0.borrow_mut().grad[i] += -out_data[k][j*cols+l] * out_data[k][j*cols+l]
+                            * out_grad[k][j*cols+l];
                         }
                     }
                 }
@@ -544,23 +540,24 @@ pub fn embedding_backward(out: &Tensor, weight: &Tensor, tokens: &[usize]) {
     }
 }
 pub fn cross_entropy_forward(a: &Vec<Tensor>, targets: &Vec<&[usize]>) -> Tensor {
+    let rows = a[0].0.borrow().shape[0];
     let cols = a[0].0.borrow().shape[1];
     let size: usize = a[0].shape().iter().product();
     let mut loss = 0.0;
     for i in 0..a.len(){
         let probs = a[i].0.borrow().data.clone();
         for (j, &target) in targets[i].iter().enumerate() {
-            loss -= (target as f32) * (probs[j*cols+target] + 1.0e-8).ln();
+            loss -=  (probs[j*cols+target] + 1.0e-8).ln();
         }
     }
-    Tensor::tensor(loss/((targets.len()*a.len()) as f32), vec![1,1])
+    Tensor::tensor(loss/((rows*a.len()) as f32), vec![1,1])
 }
 pub fn cross_entropy_backward(a: &Vec<Tensor>, targets: &Vec<&[usize]>) {
     let rows = a[0].0.borrow().shape[0];
     let cols = a[0].0.borrow().shape[1];
     for i in 0..a.len(){
         for (j, &target) in targets[i].iter().enumerate() {
-            a[i].0.borrow_mut().grad[j*cols+target] -= 1.0/(targets.len() * a.len()) as f32; 
+            a[i].0.borrow_mut().grad[j*cols+target] -= 1.0/(rows * a.len()) as f32; 
         }
     }
 }

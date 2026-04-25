@@ -78,8 +78,10 @@ fn main(){
         emb_x.iter().zip(data.clone()).for_each(|(e, x)| embedding_backward(&e, &emb_w, x.0));
         pos_emb_x.iter().zip(emb_x).for_each(|(p,e)|add_backward(&p,&e,&pe));
         // adjust weights
+        params[0].print();
         for p in &params {
-            p.adjust_data(-10.);
+            p.adjust_data(-0.01);
         }
+        params[0].print();
     }
 }
