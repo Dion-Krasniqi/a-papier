@@ -38,7 +38,7 @@ fn main(){
     let norm_layer2 = LayerNorm::new(vec![block_size,head_dim]);
     let mut ffn_layer = FeedForward::new(vec![block_size,head_dim], data.len());
     let linear_layer = LinearLayer::new(vec![emb_dim,vocab_size], block_size, data.len());
-    let mut params: Vec<Tensor> = vec![norm_layer1.betta.clone(),norm_layer2.betta.clone()];
+    let mut params: Vec<Tensor> = vec![emb_w.clone(), norm_layer1.betta.clone(),norm_layer2.betta.clone()];
     params.extend(masked_head.parameters());
     params.extend(ffn_layer.parameters());
     params.extend(linear_layer.parameters());
@@ -47,7 +47,7 @@ fn main(){
         for p in &params {
             p.set_grad(0.0);
         }
-        let emb_x: Vec<Tensor> = data.iter().map(|x| embedding_forward(x.0, &emb_w)).collect(); // x.len() * emb_w.cols = block_size * emb_dim
+        let emb_x: Vec<Tensor> = data.iter().map(|x| embedding_forward(&x.0, &emb_w)).collect(); // x.len() * emb_w.cols = block_size * emb_dim
         let pos_emb_x: Vec<Tensor> = emb_x.iter().map(|e|add_forward(&e,&pe)).collect();
 
         let masked_x = masked_head.forward(&pos_emb_x);
@@ -75,13 +75,11 @@ fn main(){
         norm_layer1.backward(&add_norm1, &add_1);
         add_backward_vec(&add_1, &pos_emb_x, &masked_x);
         masked_head.backward(&masked_x, &pos_emb_x);
-        emb_x.iter().zip(data.clone()).for_each(|(e, x)| embedding_backward(&e, &emb_w, x.0));
-        pos_emb_x.iter().zip(emb_x).for_each(|(p,e)|add_backward(&p,&e,&pe));
+        pos_emb_x.iter().zip(&emb_x).for_each(|(p,e)|add_backward(&p,&e,&pe));
+        emb_x.iter().zip(&data).for_each(|(e, x)| embedding_backward(&e, &emb_w, &x.0));
         // adjust weights
-        params[0].print();
         for p in &params {
             p.adjust_data(-0.001);
         }
-        params[0].print();
     }
 }

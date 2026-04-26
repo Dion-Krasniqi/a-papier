@@ -16,7 +16,7 @@ impl Tensor {
     // add seed option
     pub fn rand(shape: Vec<usize>) -> Tensor {
         let size: usize = shape.iter().product();
-        let data: Vec<f32> = (0..size).map(|_| (random::<f32>()-0.5)*0.02).collect();
+        let data: Vec<f32> = (0..size).map(|_| random::<f32>()).collect(); //(0..size).map(|_| (random::<f32>()-0.5)*0.2).collect();
         let output = TensorData {
             data,
             grad: vec![0.0f32;size],
