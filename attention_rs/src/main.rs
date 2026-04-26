@@ -80,7 +80,7 @@ fn main(){
         // adjust weights
         params[0].print();
         for p in &params {
-            p.adjust_data(-0.01);
+            p.adjust_data(-0.001);
         }
         params[0].print();
     }

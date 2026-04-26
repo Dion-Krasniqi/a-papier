@@ -364,60 +364,35 @@ pub fn softmax_forward(a: &Vec<Tensor>) -> Vec<Tensor> {
     output
 }
 pub fn softmax_backward(out: &Vec<Tensor>, a: &Vec<Tensor>) {
-    //OLD AND WRONG
+    
     // for one tensor
-    // // fx = e(ai)/exp_sum, a/h - d(a/h)/dx -> d(a/h)/dx = a'h - ah' / h^2
-    // // when fx at i and ai
-    // // d(fx)/d(ai) = e(ai) * sum - (sum')* e(ai) / (sum^2), d(sum)/d(ai) = (e(a1) + e(a2) + ... + e(ai) + ... + e(an)) * e(ai) = e(ai)
-    // // d(fx)/d(ai) = e(ai)*sum - e(ai)^2 / sum^2
-    // // when fx at i and a j (j!=i)
-    // // d(fx)/d(aj) = e(ai)' * sum - (sum') * e(ai) / sum^2, e(ai)' = 0, since its d(fx) per d(aj) so e(ai) as const
-    // // d(fx)/d(aj) = 0 - e(aj)*e(ai)/ sum^2 -> e(aj)*e(ai)/sum^2
+    // fx = e(ai)/Sum(aj.exp())
+    // k = i dout/ak = (e(ak)* sum(aj.exp()) - e(ak)*e(ak))/sum(aj.exp())^2 * out_grad
+    // = (e(ak)/sum(aj.exp()) - ak.exp()^2/ sum^2) * out_grad
+    // = (out_data - out_data^2) * out_grad = out_data(1 - out_data) * out_grad
+    //
+    //k =/ i dout/ak = (0 - ak.exp*ai.exp())/sum^2 * out_grad 
+    // = - out_data[k] * out_data[i] * out_grad
     let shape = a[0].shape();
-    let size = shape.iter().product();
     let rows = shape[0];
     let cols = shape[1];
-    let mut exp_sum: Vec<f32> = vec![0.0f32;a.len()*shape[0].clone()];
-    let mut shifted: Vec<Vec<f32>> = vec![vec![0.0f32;size];a.len()];
-    for i in 0..a.len() {
-        let max = a[i].0.borrow().data.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-        shifted[i] = a[i].0.borrow().data.iter().map(|x| x - max).collect();
-        for j in 0..shape[0].clone() {
-            for k in 0..shape[1].clone() {
-                exp_sum[i*rows+j] += shifted[i][j*cols+k].exp();
-            }
-        }
-    }
     let out_data: Vec<Vec<f32>> = out.iter().map(|o|o.0.borrow().data.clone()).collect();
     let out_grad: Vec<Vec<f32>> = out.iter().map(|o|o.0.borrow().grad.clone()).collect();
-    let squared_sum: Vec<f32> = exp_sum.iter().map(|e|e.powf(2.0)).collect();
     let length = out_data[0].len();
     for k in 0..a.len() {
         for i in 0..length{
                 for j in 0..rows {
                     for l in 0..cols {
                         if i == j*cols + l {
-                            // a[k].0.borrow_mut().grad[i] += (shifted[k][i] * exp_sum[k*rows+j] - shifted[k][i])
-                            // / squared_sum[k*rows+j] * out_grad[k][i];
-                            // RECHECK THE INDEXING
-                            a[k].0.borrow_mut().grad[i] += (out_data[k][j*cols+l]*(1.0-out_data[k][j*cols+l]))
+                            a[k].0.borrow_mut().grad[i] += (out_data[k][i]*(1.0-out_data[k][i]))
                              * out_grad[k][i];
-                            
                         } else {
-                            a[k].0.borrow_mut().grad[i] += -out_data[k][j*cols+l] * out_data[k][j*cols+l]
+                            a[k].0.borrow_mut().grad[i] += -out_data[k][i] * out_data[k][j*cols+l]
                             * out_grad[k][j*cols+l];
                         }
                     }
                 }
-                // for j in 0..length{
-                //     if i==j {
-                //         a[k].0.borrow_mut().grad[i] += ((shifted[k])[i] * exp_sum[k+cols] - (shifted[k])[i].powf(2.0))
-                //         / squared_sum[k+cols] * (out_grad[k])[i];
-                //     } else {
-                //         a[k].0.borrow_mut().grad[i] += ((shifted[k])[j] * (shifted[k])[i]) / squared_sum[k+cols] * (out_grad[k])[j];
-                //     }
-                // }
-        }
+            }
     }
 }
 pub fn layernorm_forward(a: &Tensor, betta: &Tensor, gamma: f32) -> Tensor {
