@@ -1,10 +1,3 @@
-use std::ops::{Add, Mul, Div};
-use std::fmt;
-use std::rc::Rc;
-use std::cell::RefCell;
-use std::collections::HashSet;
-use std::hash::{Hash, Hasher};
-
 mod tensor;
 // mod scalar;
 // use crate::scalar::neuron::definitions::*;
@@ -13,7 +6,6 @@ mod tensor;
 use crate::tensor::tensor::*;
 
 fn main(){
-    // since just character level for now
     let text = std::fs::read_to_string("src/tensor/data.txt").unwrap();
     let tokenizer = Tokenizer::new(&text);
     let tokens = tokenizer.encode(&text);
@@ -21,7 +13,7 @@ fn main(){
 
     let emb_dim: usize = 10;
     let emb_w = Tensor::rand(vec![vocab_size, emb_dim]);
-    let block_size: usize = 8; //dummy for now
+    let block_size: usize = 8;
     let n = (0.9 * text.len() as f32) as usize;
     let train_data = &tokens[..n];
     let val_data = &tokens[n..];
@@ -79,7 +71,7 @@ fn main(){
         emb_x.iter().zip(&data).for_each(|(e, x)| embedding_backward(&e, &emb_w, &x.0));
         // adjust weights
         for p in &params {
-            p.adjust_data(-0.001);
+            p.adjust_data(-0.1);
         }
     }
 }

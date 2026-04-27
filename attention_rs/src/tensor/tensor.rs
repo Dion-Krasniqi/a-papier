@@ -4,6 +4,13 @@ use std::cell::RefCell;
 use rand::random;
 use std::collections::HashMap;
 
+pub fn norm_random(mean: f32, std: f32) -> f32{
+    let a = 2.*random::<f32>() -1.;
+    let b = 2.*random::<f32>() -1.;
+    let s: f32 = a.powf(2.) + b.powf(2.);
+    if s >= 1. {return norm_random(mean,std)} else if s == 0.0 { return 0.0 };
+    return ((mean + std * (a * (-2.0 * s.ln()/s).sqrt()))/2.).abs()
+}
 struct TensorData {
     data: Vec<f32>, // no matter the dim, the data is stored in order and shape "determines" dimension
     grad: Vec<f32>,
@@ -16,7 +23,7 @@ impl Tensor {
     // add seed option
     pub fn rand(shape: Vec<usize>) -> Tensor {
         let size: usize = shape.iter().product();
-        let data: Vec<f32> = (0..size).map(|_| random::<f32>()).collect(); //(0..size).map(|_| (random::<f32>()-0.5)*0.2).collect();
+        let data: Vec<f32> = (0..size).map(|_| norm_random(0.5,1.) ).collect(); //(0..size).map(|_| (random::<f32>()-0.5)*0.2).collect();
         let output = TensorData {
             data,
             grad: vec![0.0f32;size],
