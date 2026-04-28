@@ -3,13 +3,15 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use rand::random;
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::prelude::*;
 
 pub fn norm_random(mean: f32, std: f32) -> f32{
     let a = 2.*random::<f32>() -1.;
     let b = 2.*random::<f32>() -1.;
     let s: f32 = a.powf(2.) + b.powf(2.);
     if s >= 1. {return norm_random(mean,std)} else if s == 0.0 { return 0.0 };
-    return ((mean + std * (a * (-2.0 * s.ln()/s).sqrt()))/2.).abs()
+    return mean + std * (a * (-2.0 * s.ln()/s).sqrt())
 }
 struct TensorData {
     data: Vec<f32>, // no matter the dim, the data is stored in order and shape "determines" dimension
@@ -23,7 +25,7 @@ impl Tensor {
     // add seed option
     pub fn rand(shape: Vec<usize>) -> Tensor {
         let size: usize = shape.iter().product();
-        let data: Vec<f32> = (0..size).map(|_| norm_random(0.5,1.) ).collect(); //(0..size).map(|_| (random::<f32>()-0.5)*0.2).collect();
+        let data: Vec<f32> = (0..size).map(|_|norm_random(0.0,0.02)).collect(); //(0..size).map(|_| (random::<f32>()-0.5)*0.2).collect();
         let output = TensorData {
             data,
             grad: vec![0.0f32;size],
@@ -761,7 +763,7 @@ impl FeedForward {
     pub fn new(shape: Vec<usize>, in_len: usize) -> FeedForward {
         // confused on the parametrization
         let weights = (Tensor::rand(vec![shape[1].clone(),shape[1].clone()]),Tensor::rand(vec![shape[1].clone(),shape[1].clone()]));
-        let biases = (Tensor::rand(shape.clone()),Tensor::rand(shape.clone()));
+        let biases = (Tensor::zero(shape.clone()),Tensor::zero(shape.clone()));
         let f1: Vec<Tensor> = (0..in_len).map(|_|Tensor::rand(shape.clone())).collect();
         let f2: Vec<Tensor> = (0..in_len).map(|_|Tensor::rand(shape.clone())).collect();
         FeedForward { weights, biases, f1, f2 }
@@ -869,6 +871,16 @@ impl LayerNorm {
     pub fn backward(&self, out: &Vec<Tensor>, x: &Vec<Tensor>) {
         for i in 0..x.len() {
             layernorm_backward(&out[i], &(x[i]), &self.betta, self.gamma);
+        }
+    }
+}
+pub fn save_model(params: &Vec<Tensor>, path: &str) {
+    let mut file = File::create(path).unwrap();
+    for p in params {
+        let data = p.data();
+        file.write_all(&(data.len() as u32).to_le_bytes()).unwrap();
+        for val in &data {
+            file.write_all(&val.to_le_bytes()).unwrap();
         }
     }
 }

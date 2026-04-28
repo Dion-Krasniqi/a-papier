@@ -18,7 +18,7 @@ fn main(){
     let train_data = &tokens[..n];
     let val_data = &tokens[n..];
     let mut data = Vec::new();
-    for i in 0..100 {
+    for i in 0..5 {
         data.push((&train_data[i..block_size+i],&train_data[i+1..block_size+i+1]));
     }
     let head_dim = emb_dim;
@@ -35,7 +35,7 @@ fn main(){
     params.extend(ffn_layer.parameters());
     params.extend(linear_layer.parameters());
     let y : Vec<&[usize]> = data.iter().map(|(x)|x.1).collect();
-    for _ in 0..100000{
+    for _ in 0..5{
         for p in &params {
             p.set_grad(0.0);
         }
@@ -71,7 +71,8 @@ fn main(){
         emb_x.iter().zip(&data).for_each(|(e, x)| embedding_backward(&e, &emb_w, &x.0));
         // adjust weights
         for p in &params {
-            p.adjust_data(-0.1);
+            p.adjust_data(-0.01);
         }
     }
+    save_model(&params,"model.txt");
 }
