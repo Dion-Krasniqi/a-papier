@@ -34,8 +34,10 @@ fn main(){
     params.extend(masked_head.parameters());
     params.extend(ffn_layer.parameters());
     params.extend(linear_layer.parameters());
+
+    load_model(&params,"model.bin");
     let y : Vec<&[usize]> = data.iter().map(|(x)|x.1).collect();
-    for _ in 0..5{
+    for _ in 0..100{
         for p in &params {
             p.set_grad(0.0);
         }
@@ -74,5 +76,5 @@ fn main(){
             p.adjust_data(-0.01);
         }
     }
-    save_model(&params,"model.txt");
+    save_model(&params,"model.bin");
 }

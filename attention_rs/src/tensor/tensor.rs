@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use rand::random;
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs;
 use std::io::prelude::*;
 
 pub fn norm_random(mean: f32, std: f32) -> f32{
@@ -875,13 +875,29 @@ impl LayerNorm {
     }
 }
 pub fn save_model(params: &Vec<Tensor>, path: &str) {
-    let mut file = File::create(path).unwrap();
+    let mut file = fs::File::create(path).unwrap();
     for p in params {
         let data = p.data();
+        //println!("{}", data.len());
         file.write_all(&(data.len() as u32).to_le_bytes()).unwrap();
         for val in &data {
             file.write_all(&val.to_le_bytes()).unwrap();
         }
+    }
+}
+pub fn load_model(params: &Vec<Tensor>, path: &str) {
+    let mut file = fs::File::open(path).unwrap();
+    for p in params {
+        let mut buffer = [0u8;4];
+        file.read_exact(&mut buffer).unwrap();
+        let len = u32::from_le_bytes(buffer);
+        let mut data = vec![0.0f32;len as usize]; 
+        for i in 0..len {
+             let mut data_buffer = [0u8;4];
+             file.read_exact(&mut data_buffer).unwrap();
+             data[i as usize] = f32::from_le_bytes(data_buffer);
+        }
+        p.0.borrow_mut().data = data;
     }
 }
 // pub enum Layer {
