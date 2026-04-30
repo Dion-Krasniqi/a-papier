@@ -4,8 +4,10 @@ mod tensor;
 // use crate::scalar::neuron::definitions::NONL as NONL;
 // use crate::scalar::value::definitions::*;
 use crate::tensor::tensor::*;
+use crate::tensor::generator::generator;
 
 fn main(){
+    generator();
     let text = std::fs::read_to_string("src/tensor/data.txt").unwrap();
     let tokenizer = Tokenizer::new(&text);
     let tokens = tokenizer.encode(&text);
@@ -13,7 +15,7 @@ fn main(){
 
     let emb_dim: usize = 10;
     let emb_w = Tensor::rand(vec![vocab_size, emb_dim]);
-    let block_size: usize = 8;
+    let block_size: usize = 64;
     let n = (0.9 * text.len() as f32) as usize;
     let train_data = &tokens[..n];
     let val_data = &tokens[n..];
