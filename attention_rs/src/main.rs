@@ -5,9 +5,10 @@ mod tensor;
 // use crate::scalar::value::definitions::*;
 use crate::tensor::tensor::*;
 use crate::tensor::generator::generator;
+use rand::random;
 
 fn main(){
-    generator();
+    //generator();
     let text = std::fs::read_to_string("src/tensor/data.txt").unwrap();
     let tokenizer = Tokenizer::new(&text);
     let tokens = tokenizer.encode(&text);
@@ -39,11 +40,14 @@ fn main(){
 
     load_model(&params,"model.bin");
     let y : Vec<&[usize]> = data.iter().map(|(x)|x.1).collect();
-    for _ in 0..100{
+    for _ in 0..500{
+        let start = (random::<f32>() * train_data.len() as f32) as usize - block_size;
+        let x = &train_data[start..start+block_size];
+        let y = vec![&train_data[start+1..start+1+block_size]];
         for p in &params {
             p.set_grad(0.0);
         }
-        let emb_x: Vec<Tensor> = data.iter().map(|x| embedding_forward(&x.0, &emb_w)).collect(); // x.len() * emb_w.cols = block_size * emb_dim
+        let emb_x: Vec<Tensor> = vec![embedding_forward(&x, &emb_w)]; // x.len() * emb_w.cols = block_size * emb_dim
         let pos_emb_x: Vec<Tensor> = emb_x.iter().map(|e|add_forward(&e,&pe)).collect();
 
         let masked_x = masked_head.forward(&pos_emb_x);
@@ -72,10 +76,14 @@ fn main(){
         add_backward_vec(&add_1, &pos_emb_x, &masked_x);
         masked_head.backward(&masked_x, &pos_emb_x);
         pos_emb_x.iter().zip(&emb_x).for_each(|(p,e)|add_backward(&p,&e,&pe));
-        emb_x.iter().zip(&data).for_each(|(e, x)| embedding_backward(&e, &emb_w, &x.0));
+        embedding_backward(&emb_x[0], &emb_w,&x);
+        //emb_x.iter().zip(&data).for_each(|(e, x)| embedding_backward(&e, &emb_w, &x.0));
         // adjust weights
         for p in &params {
             p.adjust_data(-0.01);
+        }
+        if i%100 == 0 {
+            save_model(&params,"model.bin");
         }
     }
     save_model(&params,"model.bin");

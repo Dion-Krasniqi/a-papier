@@ -1,6 +1,20 @@
 use crate::tensor::tensor::*;
-pub fn generator() {
+use rand::random;
 
+
+pub fn sample(probs: &[f32]) -> usize {
+    let mut temp = 0.0f32;
+    let mut idx = 0usize;
+    for (e,p) in probs.iter().enumerate() {
+        let mut r = random::<f32>();
+        r -= p;
+        if r <= 0.0 {
+            return e
+        }
+    }
+    probs.len() - 1
+}
+pub fn generator() {
     let text = std::fs::read_to_string("src/tensor/data.txt").unwrap();
     let tokenizer = Tokenizer::new(&text);
     let tokens = tokenizer.encode(&text);
@@ -25,14 +39,14 @@ pub fn generator() {
 
     load_model(&params,"model.bin");
 
-    let input = &tokens[5..5+block_size];
-    println!("{:?}", tokenizer.decode(input));
-    let emb_x = embedding_forward(&input, &emb_w);
-    let pos_emb_x: Vec<Tensor> = vec![add_forward(&emb_x, &pe)];
+    let mut input: Vec<usize> = tokens[5..5+block_size].to_vec();
+    for i in 0..200 {
+        let emb_x = embedding_forward(&input[input.len()-block_size..], &emb_w);
+        let pos_emb_x: Vec<Tensor> = vec![add_forward(&emb_x, &pe)];
 
-    let masked_x = masked_head.forward(&pos_emb_x);
+        let masked_x = masked_head.forward(&pos_emb_x);
         let add_1 = add_forward_vec(&pos_emb_x, &masked_x);
-        
+            
         let add_norm1 = norm_layer1.forward(&add_1);
 
         let ffn_x = ffn_layer.forward(&add_norm1);
@@ -41,15 +55,10 @@ pub fn generator() {
 
         let linear_x = linear_layer.forward(&add_norm2);
         let softmax_x = softmax_forward(&linear_x);
-        let mut temp = (0.0f32, 0);
-        println!("{:?}", softmax_x[0].shape());
-        for (e,s) in softmax_x[0].data().iter().enumerate() {
-            if *s > temp.0 { 
-                temp.0 = *s;
-                temp.1 = e; 
-            }
-        }
-        println!("{}", temp.1);
-        // eeeh
-        println!("{:?}",tokenizer.decode(&[(temp.1 as i16 - ((temp.1/65) as i16)*65) as usize]));
+        let last_row = (block_size - 1)  * vocab_size;
+        let probs = &softmax_x[0].data()[last_row..last_row+block_size];
+        let next_token = sample(probs);
+        input.push(next_token);
+    }
+    println!("{:?}", tokenizer.decode(&input));
 }
