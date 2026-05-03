@@ -1,6 +1,8 @@
 use crate::tensor::tensor::*;
+use crate::tensor::tokenizer::*;
+use crate::tensor::operations::*;
+use crate::tensor::layers::*;
 use rand::random;
-
 
 pub fn sample(probs: &[f32]) -> usize {
     let mut temp = 0.0f32;
@@ -28,10 +30,10 @@ pub fn generator() {
     
     
     let masked_head = MaskedAttentionHead::new(vec![emb_dim,head_dim]);
-    let norm_layer1 = LayerNorm::new(vec![block_size,head_dim]);
-    let norm_layer2 = LayerNorm::new(vec![block_size,head_dim]);
+    let norm_layer1 = LayerNorm::new(vec![block_size,head_dim], 1.0);
+    let norm_layer2 = LayerNorm::new(vec![block_size,head_dim], 1.0);
     let mut ffn_layer = FeedForward::new(vec![block_size,head_dim], 1);
-    let linear_layer = LinearLayer::new(vec![emb_dim,vocab_size], block_size, 1);
+    let linear_layer = LinearLayer::new(vec![emb_dim,vocab_size], block_size);
     let mut params: Vec<Tensor> = vec![emb_w.clone(), norm_layer1.betta.clone(),norm_layer2.betta.clone()];
     params.extend(masked_head.parameters());
     params.extend(ffn_layer.parameters());

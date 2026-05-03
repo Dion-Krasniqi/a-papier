@@ -1,10 +1,9 @@
 mod tensor;
-// mod scalar;
-// use crate::scalar::neuron::definitions::*;
-// use crate::scalar::neuron::definitions::NONL as NONL;
-// use crate::scalar::value::definitions::*;
 use crate::tensor::tensor::*;
 use crate::tensor::generator::generator;
+use crate::tensor::tokenizer::*;
+use crate::tensor::operations::*;
+use crate::tensor::layers::*;
 use rand::random;
 
 fn main(){
@@ -29,10 +28,10 @@ fn main(){
     
     
     let masked_head = MaskedAttentionHead::new(vec![emb_dim,head_dim]);
-    let norm_layer1 = LayerNorm::new(vec![block_size,head_dim]);
-    let norm_layer2 = LayerNorm::new(vec![block_size,head_dim]);
+    let norm_layer1 = LayerNorm::new(vec![block_size,head_dim], 1.0);
+    let norm_layer2 = LayerNorm::new(vec![block_size,head_dim], 1.0);
     let mut ffn_layer = FeedForward::new(vec![block_size,head_dim], data.len());
-    let linear_layer = LinearLayer::new(vec![emb_dim,vocab_size], block_size, data.len());
+    let linear_layer = LinearLayer::new(vec![emb_dim,vocab_size], block_size);
     let mut params: Vec<Tensor> = vec![emb_w.clone(), norm_layer1.betta.clone(),norm_layer2.betta.clone()];
     params.extend(masked_head.parameters());
     params.extend(ffn_layer.parameters());
@@ -40,7 +39,7 @@ fn main(){
 
     load_model(&params,"model.bin");
     let y : Vec<&[usize]> = data.iter().map(|(x)|x.1).collect();
-    for _ in 0..500{
+    for i in 0..500{
         let start = (random::<f32>() * train_data.len() as f32) as usize - block_size;
         let x = &train_data[start..start+block_size];
         let y = vec![&train_data[start+1..start+1+block_size]];
