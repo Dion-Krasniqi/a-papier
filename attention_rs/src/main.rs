@@ -7,21 +7,25 @@ use crate::tensor::layers::*;
 use rand::random;
 
 fn main(){
-    //generator();
     let text = std::fs::read_to_string("src/tensor/data.txt").unwrap();
     let tokenizer = Tokenizer::new(&text);
     let tokens = tokenizer.encode(&text);
     let vocab_size = tokenizer.get_vocab_len();
 
+    generator(tokenizer);
+    
     let emb_dim: usize = 10;
     let emb_w = Tensor::rand(vec![vocab_size, emb_dim]);
     let block_size: usize = 64;
     let n = (0.9 * text.len() as f32) as usize;
     let train_data = &tokens[..n];
     let val_data = &tokens[n..];
-    let mut data = Vec::new();
-    for i in 0..5 {
-        data.push((&train_data[i..block_size+i],&train_data[i+1..block_size+i+1]));
+    let mut x = Vec::new();
+    let mut y = Vec::new();
+    for i in 0..15 {
+        x.push(&train_data[i..block_size+i]);
+        y.push(&train_data[i+1..block_size+i+1]);
+        
     }
     let head_dim = emb_dim;
     let pe = positional_encoding(block_size, emb_dim);
@@ -30,7 +34,7 @@ fn main(){
     let masked_head = MaskedAttentionHead::new(vec![emb_dim,head_dim]);
     let norm_layer1 = LayerNorm::new(vec![block_size,head_dim], 1.0);
     let norm_layer2 = LayerNorm::new(vec![block_size,head_dim], 1.0);
-    let mut ffn_layer = FeedForward::new(vec![block_size,head_dim], data.len());
+    let mut ffn_layer = FeedForward::new(vec![block_size,head_dim], x.len());
     let linear_layer = LinearLayer::new(vec![emb_dim,vocab_size], block_size);
     let mut params: Vec<Tensor> = vec![emb_w.clone(), norm_layer1.betta.clone(),norm_layer2.betta.clone()];
     params.extend(masked_head.parameters());
@@ -38,15 +42,11 @@ fn main(){
     params.extend(linear_layer.parameters());
 
     load_model(&params,"model.bin");
-    let y : Vec<&[usize]> = data.iter().map(|(x)|x.1).collect();
     for i in 0..500{
-        let start = (random::<f32>() * train_data.len() as f32) as usize - block_size;
-        let x = &train_data[start..start+block_size];
-        let y = vec![&train_data[start+1..start+1+block_size]];
         for p in &params {
             p.set_grad(0.0);
         }
-        let emb_x: Vec<Tensor> = vec![embedding_forward(&x, &emb_w)]; // x.len() * emb_w.cols = block_size * emb_dim
+        let emb_x: Vec<Tensor> = x.iter().map(|a| embedding_forward(&a, &emb_w)).collect(); // x.len() * emb_w.cols = block_size * emb_dim
         let pos_emb_x: Vec<Tensor> = emb_x.iter().map(|e|add_forward(&e,&pe)).collect();
 
         let masked_x = masked_head.forward(&pos_emb_x);
@@ -75,11 +75,10 @@ fn main(){
         add_backward_vec(&add_1, &pos_emb_x, &masked_x);
         masked_head.backward(&masked_x, &pos_emb_x);
         pos_emb_x.iter().zip(&emb_x).for_each(|(p,e)|add_backward(&p,&e,&pe));
-        embedding_backward(&emb_x[0], &emb_w,&x);
-        //emb_x.iter().zip(&data).for_each(|(e, x)| embedding_backward(&e, &emb_w, &x.0));
+        emb_x.iter().zip(&x).for_each(|(e, a)| embedding_backward(&e, &emb_w, &a));
         // adjust weights
         for p in &params {
-            p.adjust_data(-0.01);
+            p.adjust_data(-0.1);
         }
         if i%100 == 0 {
             save_model(&params,"model.bin");

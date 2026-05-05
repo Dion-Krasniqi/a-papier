@@ -5,6 +5,10 @@ use rand::random;
 use std::fs;
 use std::io::prelude::*;
 
+#[derive(Debug)]
+pub enum ModelError {
+    GenericError(String),
+}
 pub fn norm_random(mean: f32, std: f32) -> f32{
     let a = 2.*random::<f32>() -1.;
     let b = 2.*random::<f32>() -1.;
@@ -121,28 +125,48 @@ impl Mul<f32> for &Tensor {
         Tensor(Rc::new(RefCell::new(output)))
     }
 }
-pub fn save_model(params: &Vec<Tensor>, path: &str) {
-    let mut file = fs::File::create(path).unwrap();
+pub fn save_model(params: &Vec<Tensor>, path: &str) -> Result< (), ModelError> {
+    let mut file = match fs::File::create(path) {
+        Ok(f) => f,
+        Err(e) => return Err(ModelError::GenericError(format!("Failed to create file, error: {}", e).to_string())),
+    };
     for p in params {
         let data = p.data();
-        file.write_all(&(data.len() as u32).to_le_bytes()).unwrap();
+        match file.write_all(&(data.len() as u32).to_le_bytes()) {
+            Ok(_) => (),
+            Err(e) => return Err(ModelError::GenericError(format!("Error while writing data: {}", e).to_string())),
+        };
         for val in &data {
-            file.write_all(&val.to_le_bytes()).unwrap();
+            match file.write_all(&val.to_le_bytes()) {
+                Ok(_) => (),
+                Err(e) => return Err(ModelError::GenericError(format!("Error while writing data: {}", e).to_string())),
+            };
         }
     }
+    Ok(())
 }
-pub fn load_model(params: &Vec<Tensor>, path: &str) {
-    let mut file = fs::File::open(path).unwrap();
+pub fn load_model(params: &Vec<Tensor>, path: &str) -> Result< (), ModelError> {
+    let mut file = match fs::File::open(path) {
+        Ok(f) => f,
+        Err(e) => return Err(ModelError::GenericError(format!("Failed to open file, error: {}", e).to_string())),
+    };
     for p in params {
         let mut buffer = [0u8;4];
-        file.read_exact(&mut buffer).unwrap();
+        match file.read_exact(&mut buffer) {
+            Ok(_) => (),
+            Err(e) => return Err(ModelError::GenericError(format!("Error while reading file: {}", e).to_string())),
+        }
         let len = u32::from_le_bytes(buffer);
         let mut data = vec![0.0f32;len as usize]; 
         for i in 0..len {
-             let mut data_buffer = [0u8;4];
-             file.read_exact(&mut data_buffer).unwrap();
-             data[i as usize] = f32::from_le_bytes(data_buffer);
+            let mut data_buffer = [0u8;4];
+            match file.read_exact(&mut data_buffer) {
+                Ok(_) => (),
+                Err(e) => return Err(ModelError::GenericError(format!("Error while reading file: {}", e).to_string())),
+            }
+            data[i as usize] = f32::from_le_bytes(data_buffer);
         }
         p.0.borrow_mut().data = data;
     }
+    Ok(())
 }
