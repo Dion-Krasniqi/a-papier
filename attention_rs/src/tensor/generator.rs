@@ -16,7 +16,7 @@ pub fn sample(probs: &[f32]) -> usize {
     }
     probs.len() - 1
 }
-pub fn generator(tokenizer: Tokenizer) {
+pub fn generator(tokenizer: Tokenizer, input: &str) {
     // let text = std::fs::read_to_string("src/tensor/data.txt").unwrap();
     // let tokenizer = Tokenizer::new(&text);
     // let tokens = tokenizer.encode(&text);
@@ -40,7 +40,15 @@ pub fn generator(tokenizer: Tokenizer) {
     params.extend(linear_layer.parameters());
 
     load_model(&params,"model.bin");
-    let decoded = tokenizer.encode("CitizenCitizenCitizenCitizenCitizenCitizenCitizenCitizenCitizenCitizenCitizeni");
+    let decoded = if input.len() == 64 {
+        tokenizer.encode(input)
+    } else if input.len() > 64 {
+        tokenizer.encode(&input[(input.len()-64)..])
+    } else {
+        let missing = 64 - input.len();
+        let pad = " ".repeat(missing);
+        tokenizer.encode(&format!("{pad}{input}"))
+    };
     let mut input: Vec<usize> = decoded.to_vec();
     for i in 0..200 {
         let emb_x = embedding_forward(&input[input.len()-block_size..], &emb_w);

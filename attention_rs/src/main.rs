@@ -12,7 +12,7 @@ fn main(){
     let tokens = tokenizer.encode(&text);
     let vocab_size = tokenizer.get_vocab_len();
 
-    generator(tokenizer);
+    generator(tokenizer,"It is he, thy Citizen Kane. ");
     
     let emb_dim: usize = 10;
     let emb_w = Tensor::rand(vec![vocab_size, emb_dim]);
@@ -22,7 +22,8 @@ fn main(){
     let val_data = &tokens[n..];
     let mut x = Vec::new();
     let mut y = Vec::new();
-    for i in 0..15 {
+    let train_len: usize = 15; //(train_data.len()-block_size);
+    for i in 0..train_len {
         x.push(&train_data[i..block_size+i]);
         y.push(&train_data[i+1..block_size+i+1]);
         
@@ -40,14 +41,19 @@ fn main(){
     params.extend(masked_head.parameters());
     params.extend(ffn_layer.parameters());
     params.extend(linear_layer.parameters());
-
+    let sample_number: usize = 10;
     load_model(&params,"model.bin");
-    for i in 0..500{
+    for i in 0..1000 {
         for p in &params {
             p.set_grad(0.0);
         }
-        let emb_x: Vec<Tensor> = x.iter().map(|a| embedding_forward(&a, &emb_w)).collect(); // x.len() * emb_w.cols = block_size * emb_dim
-        let pos_emb_x: Vec<Tensor> = emb_x.iter().map(|e|add_forward(&e,&pe)).collect();
+        let rnd_start = (random::<f32>() * (x.len() - sample_number) as f32) 
+            as usize;
+        let emb_x: Vec<Tensor> = (x[rnd_start..rnd_start+sample_number])
+            .iter().map(|a| embedding_forward(&a, &emb_w))
+            .collect(); // x.len() * emb_w.cols = block_size * emb_dim
+        let pos_emb_x: Vec<Tensor> = emb_x.iter()
+            .map(|e|add_forward(&e,&pe)).collect();
 
         let masked_x = masked_head.forward(&pos_emb_x);
         let add_1 = add_forward_vec(&pos_emb_x, &masked_x);
@@ -78,7 +84,7 @@ fn main(){
         emb_x.iter().zip(&x).for_each(|(e, a)| embedding_backward(&e, &emb_w, &a));
         // adjust weights
         for p in &params {
-            p.adjust_data(-0.1);
+            p.adjust_data(if i < 500 {-0.1} else {-0.01});
         }
         if i%100 == 0 {
             save_model(&params,"model.bin");
